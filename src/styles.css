@@ -110,6 +110,7 @@ body {
   width: 680px;
   height: 640px;
   perspective: 1400px;
+  perspective-origin: center;
   filter: drop-shadow(0 30px 80px rgba(5, 7, 20, 0.5));
 }
 
@@ -119,10 +120,12 @@ body {
   height: 100%;
   transition: transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  will-change: transform;
 }
 
 .flip-card--flipped .flip-card__inner {
-  transform: rotateY(180deg);
+  transform: rotateY(180deg) rotateX(2deg);
 }
 
 .flip-card__face {
@@ -130,6 +133,7 @@ body {
   inset: 0;
   display: flex;
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   pointer-events: none;
 }
 
