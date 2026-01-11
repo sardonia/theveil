@@ -57,6 +57,8 @@ body {
 
 .app__header {
   max-width: 720px;
+  width: min(720px, 94vw);
+  margin: 0 auto;
 }
 
 .app__eyebrow {
@@ -87,16 +89,20 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  width: 100%;
 }
 
 .app__footer {
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.55);
   max-width: 720px;
+  width: min(720px, 94vw);
+  margin: 0 auto;
 }
 
 .view {
   width: min(1440px, 94vw);
+  margin: 0 auto;
   opacity: 0;
   pointer-events: none;
   transform: translateY(20px);
@@ -118,6 +124,7 @@ body {
   box-shadow: 0 30px 80px rgba(5, 7, 20, 0.5);
   backdrop-filter: blur(22px);
   overflow: hidden;
+  margin: 0 auto;
 }
 
 .glass-card__glow {
