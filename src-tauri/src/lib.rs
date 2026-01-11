@@ -4,6 +4,25 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
 use chrono::Datelike;
 
+#[cfg(feature = "mistral")]
+mod mistral_backend {
+    use super::{HoroscopeModelBackend, Reading, ReadingRequest};
+
+    pub struct MistralBackend;
+
+    impl MistralBackend {
+        pub fn new() -> Self {
+            Self
+        }
+    }
+
+    impl HoroscopeModelBackend for MistralBackend {
+        fn generate(&self, _request: &ReadingRequest) -> Result<Reading, String> {
+            Err("Mistral backend not configured yet.".to_string())
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum ModelStatus {
@@ -56,9 +75,14 @@ pub struct ModelManager {
 
 impl ModelManager {
     fn new() -> Self {
+        #[cfg(feature = "mistral")]
+        let backend: Arc<dyn HoroscopeModelBackend> = Arc::new(mistral_backend::MistralBackend::new());
+        #[cfg(not(feature = "mistral"))]
+        let backend: Arc<dyn HoroscopeModelBackend> = Arc::new(StubBackend);
+
         Self {
             status: Arc::new(Mutex::new(ModelStatus::Unloaded)),
-            backend: Arc::new(StubBackend),
+            backend,
         }
     }
 

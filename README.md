@@ -18,6 +18,13 @@ npm run tauri dev
 - If a local model is not available, Veil automatically falls back to a
   deterministic stub generator that still feels mystical.
 
+## Mistral.rs inference engine
+
+Veil is wired to support a Mistral.rs backend behind a Rust feature flag. When
+you are ready to integrate the engine, build with `--features mistral` and
+replace the placeholder backend in `src-tauri/src/lib.rs` with real Mistral.rs
+model loading and generation logic.
+
 ## Architecture highlights
 
 - **Observer / selector subscriptions**: `src/state/store.ts`
