@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 use chrono::Datelike;
 
 #[cfg(feature = "mistral")]
@@ -110,10 +110,10 @@ pub struct ReadingRequest {
 }
 
 #[tauri::command]
-async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> ModelStatus {
+async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<ModelStatus, String> {
     let status = state.get_status();
     if matches!(status, ModelStatus::Loading { .. } | ModelStatus::Ready) {
-        return status;
+        return Ok(status);
     }
 
     state.set_status(ModelStatus::Loading { progress: 0.1 });
@@ -123,7 +123,7 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> ModelStat
     tauri::async_runtime::spawn(async move {
         let steps = [0.25, 0.45, 0.7, 0.9, 1.0];
         for progress in steps {
-            tauri::async_runtime::sleep(Duration::from_millis(360)).await;
+            std::thread::sleep(Duration::from_millis(360));
             state_clone.set_status(ModelStatus::Loading { progress });
             emit_status(&app, state_clone.get_status());
         }
@@ -131,7 +131,7 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> ModelStat
         emit_status(&app, state_clone.get_status());
     });
 
-    state.get_status()
+    Ok(state.get_status())
 }
 
 #[tauri::command]
@@ -188,7 +188,7 @@ fn generate_stub_reading(request: &ReadingRequest) -> Reading {
         "The spark beneath stillness",
         "A graceful return to center",
     ];
-    let openings = [
+    let openings = vec![
         format!(
             "Today opens with a {} current that invites gentler choices.",
             request.profile.mood.to_lowercase()
@@ -202,7 +202,7 @@ fn generate_stub_reading(request: &ReadingRequest) -> Reading {
             request.profile.mood.to_lowercase()
         ),
     ];
-    let middles = [
+    let middles = vec![
         format!(
             "As a {}, you naturally notice patterns others miss, so trust what quietly repeats.",
             request.profile.personality
@@ -224,8 +224,8 @@ fn generate_stub_reading(request: &ReadingRequest) -> Reading {
 
     let message = format!(
         "{} {} {}",
-        pick(&mut rng, &openings),
-        pick(&mut rng, &middles),
+        pick_string(&mut rng, &openings),
+        pick_string(&mut rng, &middles),
         pick(&mut rng, &closers)
     );
 
@@ -345,6 +345,11 @@ impl SeededRng {
 fn pick<'a>(rng: &mut SeededRng, values: &'a [&str]) -> &'a str {
     let index = (rng.next() * values.len() as f32).floor() as usize;
     values[index % values.len()]
+}
+
+fn pick_string(rng: &mut SeededRng, values: &[String]) -> String {
+    let index = (rng.next() * values.len() as f32).floor() as usize;
+    values[index % values.len()].clone()
 }
 
 fn shuffle(rng: &mut SeededRng, values: &mut Vec<&str>) {
