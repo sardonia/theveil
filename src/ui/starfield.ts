@@ -14,6 +14,9 @@ export function initStarfield() {
   let resizeFrame: number | null = null;
   let pendingWidth = 0;
   let pendingHeight = 0;
+  let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+  let isResizing = false;
+  let lastResizeAt = 0;
 
   const readCanvasSize = () => {
     const nextWidth = Math.round(canvas.clientWidth);
@@ -87,8 +90,17 @@ export function initStarfield() {
   };
 
   const handleResize = () => {
+    isResizing = true;
+    lastResizeAt = performance.now();
+    if (resizeTimeout) {
+      window.clearTimeout(resizeTimeout);
+    }
+    resizeTimeout = window.setTimeout(() => {
+      isResizing = false;
+    }, 280);
     readCanvasSize();
     updateCanvasSize();
+    updateStarCount();
   };
 
   const render = () => {
