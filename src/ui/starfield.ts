@@ -13,6 +13,8 @@ export function initStarfield() {
   let resizeIdleHandle: number | null = null;
   let pendingWidth = 0;
   let pendingHeight = 0;
+  let isResizing = false;
+  let lastResizeAt = 0;
 
   const readCanvasSize = () => {
     const nextWidth = Math.round(canvas.clientWidth);
@@ -60,19 +62,24 @@ export function initStarfield() {
     if (stars.length === 0) {
       updateStarCount();
     }
+    isResizing = true;
+    lastResizeAt = performance.now();
     if (resizeIdleHandle) {
       window.clearTimeout(resizeIdleHandle);
     }
     resizeIdleHandle = window.setTimeout(() => {
       updateStarCount();
+      isResizing = false;
       resizeIdleHandle = null;
     }, 240);
   };
 
   const render = () => {
     ctx.clearRect(0, 0, width, height);
+    const now = performance.now();
+    const shouldTwinkle = !prefersReducedMotion.matches && (!isResizing || now - lastResizeAt > 240);
     for (const star of stars) {
-      if (!prefersReducedMotion.matches) {
+      if (shouldTwinkle) {
         star.twinkle += star.speed;
       }
       const glow = 0.5 + Math.sin(star.twinkle) * 0.5;
