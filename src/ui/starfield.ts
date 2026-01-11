@@ -8,13 +8,12 @@ export function initStarfield() {
 
   let width = 0;
   let height = 0;
+  let baseWidth = 0;
+  let baseHeight = 0;
   let stars: Star[] = [];
   let resizeFrame: number | null = null;
-  let resizeIdleHandle: number | null = null;
   let pendingWidth = 0;
   let pendingHeight = 0;
-  let isResizing = false;
-  let lastResizeAt = 0;
 
   const readCanvasSize = () => {
     const nextWidth = Math.round(canvas.clientWidth);
@@ -41,14 +40,27 @@ export function initStarfield() {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
   };
 
+  const ensureBaseSize = () => {
+    if (baseWidth > 0 && baseHeight > 0) {
+      return;
+    }
+    const screenWidth = window.screen?.width ?? window.innerWidth;
+    const screenHeight = window.screen?.height ?? window.innerHeight;
+    baseWidth = Math.max(screenWidth, window.innerWidth);
+    baseHeight = Math.max(screenHeight, window.innerHeight);
+  };
+
   const updateStarCount = () => {
-    const targetCount = Math.floor((width * height) / 12000);
+    ensureBaseSize();
+    const targetCount = Math.floor((baseWidth * baseHeight) / 12000);
     if (stars.length === 0) {
-      stars = Array.from({ length: targetCount }, () => createStar());
+      stars = Array.from({ length: targetCount }, () => createStar(baseWidth, baseHeight));
     } else {
       if (stars.length < targetCount) {
         stars.push(
-          ...Array.from({ length: targetCount - stars.length }, () => createStar())
+          ...Array.from({ length: targetCount - stars.length }, () =>
+            createStar(baseWidth, baseHeight)
+          )
         );
       } else if (stars.length > targetCount) {
         stars = stars.slice(0, targetCount);
@@ -59,19 +71,6 @@ export function initStarfield() {
   const handleResize = () => {
     readCanvasSize();
     updateCanvasSize();
-    if (stars.length === 0) {
-      updateStarCount();
-    }
-    isResizing = true;
-    lastResizeAt = performance.now();
-    if (resizeIdleHandle) {
-      window.clearTimeout(resizeIdleHandle);
-    }
-    resizeIdleHandle = window.setTimeout(() => {
-      updateStarCount();
-      isResizing = false;
-      resizeIdleHandle = null;
-    }, 240);
   };
 
   const render = () => {
@@ -83,8 +82,11 @@ export function initStarfield() {
         star.twinkle += star.speed;
       }
       const glow = 0.5 + Math.sin(star.twinkle) * 0.5;
-      const x = star.x * width;
-      const y = star.y * height;
+      const x = star.x;
+      const y = star.y;
+      if (x < 0 || x > width || y < 0 || y > height) {
+        continue;
+      }
       ctx.beginPath();
       ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha * glow})`;
       ctx.arc(x, y, star.radius, 0, Math.PI * 2);
@@ -96,6 +98,7 @@ export function initStarfield() {
   };
 
   handleResize();
+  updateStarCount();
   render();
   const resizeObserver = new ResizeObserver(() => {
     readCanvasSize();
