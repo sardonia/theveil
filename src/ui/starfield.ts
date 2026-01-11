@@ -11,15 +11,28 @@ export function initStarfield() {
   let stars: Star[] = [];
   let resizeFrame: number | null = null;
   let resizeIdleHandle: number | null = null;
+  let pendingWidth = 0;
+  let pendingHeight = 0;
 
-  const updateCanvasSize = () => {
-    const nextWidth = canvas.clientWidth;
-    const nextHeight = canvas.clientHeight;
-    if (nextWidth === 0 || nextHeight === 0) {
+  const readCanvasSize = () => {
+    const nextWidth = Math.round(canvas.clientWidth);
+    const nextHeight = Math.round(canvas.clientHeight);
+    if (nextWidth <= 0 || nextHeight <= 0) {
       return;
     }
-    width = nextWidth;
-    height = nextHeight;
+    pendingWidth = nextWidth;
+    pendingHeight = nextHeight;
+  };
+
+  const updateCanvasSize = () => {
+    if (pendingWidth <= 0 || pendingHeight <= 0) {
+      return;
+    }
+    if (pendingWidth === width && pendingHeight === height) {
+      return;
+    }
+    width = pendingWidth;
+    height = pendingHeight;
     const scale = devicePixelRatio || 1;
     canvas.width = width * scale;
     canvas.height = height * scale;
@@ -42,6 +55,7 @@ export function initStarfield() {
   };
 
   const handleResize = () => {
+    readCanvasSize();
     updateCanvasSize();
     if (stars.length === 0) {
       updateStarCount();
@@ -77,6 +91,7 @@ export function initStarfield() {
   handleResize();
   render();
   const resizeObserver = new ResizeObserver(() => {
+    readCanvasSize();
     if (resizeFrame) {
       cancelAnimationFrame(resizeFrame);
     }
