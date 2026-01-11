@@ -51,7 +51,7 @@ body {
   flex-direction: column;
   gap: 2.5rem;
   padding: clamp(2.5rem, 4vw, 4.5rem) clamp(1.5rem, 6vw, 6rem) 3rem;
-  max-width: 1120px;
+  max-width: 1440px;
   margin: 0 auto;
 }
 
@@ -96,7 +96,7 @@ body {
 }
 
 .view {
-  width: min(720px, 92vw);
+  width: min(1440px, 94vw);
   opacity: 0;
   pointer-events: none;
   transform: translateY(20px);

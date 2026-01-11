@@ -81,7 +81,7 @@ export function initStarfield() {
       if (shouldTwinkle) {
         star.twinkle += star.speed;
       }
-      const glow = 0.5 + Math.sin(star.twinkle) * 0.5;
+      const glow = 0.55 + Math.sin(star.twinkle) * 0.45;
       const x = star.x;
       const y = star.y;
       if (x < 0 || x > width || y < 0 || y > height) {
@@ -129,6 +129,6 @@ function createStar(): Star {
     radius: Math.random() * 1.6 + 0.2,
     alpha: Math.random() * 0.8 + 0.2,
     twinkle: Math.random() * Math.PI * 2,
-    speed: Math.random() * 0.02 + 0.005,
+    speed: Math.random() * 0.035 + 0.01,
   };
 }
