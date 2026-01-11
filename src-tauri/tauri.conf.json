@@ -14,8 +14,10 @@
     "windows": [
       {
         "title": "the-veil",
-        "width": 800,
-        "height": 600
+        "width": 1100,
+        "height": 950,
+        "minWidth": 1100,
+        "minHeight": 950
       }
     ],
     "security": {
