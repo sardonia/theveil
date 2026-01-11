@@ -135,6 +135,7 @@ body {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   pointer-events: none;
+  transition: opacity 0.35s ease;
 }
 
 .flip-card__face--front {
@@ -155,6 +156,25 @@ body {
 .flip-card__face--back {
   transform: rotateY(180deg);
   z-index: 1;
+  opacity: 0;
+}
+
+.flip-card--flipped .flip-card__face--back {
+  opacity: 1;
+}
+
+.flip-card--flipped .flip-card__face--front {
+  opacity: 0;
+}
+
+@supports not (transform-style: preserve-3d) {
+  .flip-card__inner {
+    transform: none;
+  }
+
+  .flip-card__face--back {
+    transform: none;
+  }
 }
 
 .glass-card {
