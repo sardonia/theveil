@@ -109,10 +109,6 @@ body {
 .flip-card {
   width: 680px;
   height: 640px;
-  perspective: 1400px;
-  perspective-origin: center;
-  -webkit-perspective: 1400px;
-  -webkit-perspective-origin: center;
   filter: drop-shadow(0 30px 80px rgba(5, 7, 20, 0.5));
 }
 
@@ -120,51 +116,40 @@ body {
   position: relative;
   width: 100%;
   height: 100%;
-  transition: transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
-  transform-style: preserve-3d;
-  -webkit-transform-style: preserve-3d;
-  will-change: transform;
-}
-
-.flip-card--flipped .flip-card__inner {
-  transform: rotateY(180deg) rotateX(2deg);
+  transition: opacity 0.5s ease;
+  will-change: opacity;
 }
 
 .flip-card__face {
   position: absolute;
   inset: 0;
   display: flex;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.35s ease;
-  transform: translateZ(0);
-  visibility: visible;
+  transition: opacity 0.5s ease;
+  opacity: 0;
+  visibility: hidden;
 }
 
 .flip-card__face--front {
   pointer-events: auto;
   z-index: 2;
+  opacity: 1;
+  visibility: visible;
+}
+
+.flip-card__face--back {
+  z-index: 1;
 }
 
 .flip-card--flipped .flip-card__face--front {
   pointer-events: none;
   z-index: 1;
+  visibility: hidden;
 }
 
 .flip-card--flipped .flip-card__face--back {
   pointer-events: auto;
   z-index: 2;
-}
-
-.flip-card__face--back {
-  transform: rotateY(180deg);
-  z-index: 1;
-  opacity: 0;
-  visibility: hidden;
-}
-
-.flip-card--flipped .flip-card__face--back {
   opacity: 1;
   visibility: visible;
 }
@@ -172,16 +157,6 @@ body {
 .flip-card--flipped .flip-card__face--front {
   opacity: 0;
   visibility: hidden;
-}
-
-@supports not (transform-style: preserve-3d) {
-  .flip-card__inner {
-    transform: none;
-  }
-
-  .flip-card__face--back {
-    transform: none;
-  }
 }
 
 .glass-card {
