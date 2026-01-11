@@ -27,7 +27,8 @@ body {
     radial-gradient(circle at 20% 20%, rgba(68, 209, 255, 0.25), transparent 50%),
     radial-gradient(circle at 80% 10%, rgba(255, 143, 192, 0.2), transparent 45%),
     #0b0b15;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 #starfield {

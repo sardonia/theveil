@@ -9,41 +9,64 @@ export function initStarfield() {
   let width = 0;
   let height = 0;
   let stars: Star[] = [];
-  let resizeHandle: number | null = null;
+  let resizeFrame: number | null = null;
+  let resizeIdleHandle: number | null = null;
+  let pendingWidth = 0;
+  let pendingHeight = 0;
 
-  const resize = () => {
-    const nextWidth = canvas.clientWidth;
-    const nextHeight = canvas.clientHeight;
-    if (nextWidth === 0 || nextHeight === 0) {
+  const readCanvasSize = () => {
+    const nextWidth = Math.round(canvas.clientWidth);
+    const nextHeight = Math.round(canvas.clientHeight);
+    if (nextWidth <= 0 || nextHeight <= 0) {
       return;
     }
-    const previousWidth = width || nextWidth;
-    const previousHeight = height || nextHeight;
-    width = nextWidth;
-    height = nextHeight;
+    pendingWidth = nextWidth;
+    pendingHeight = nextHeight;
+  };
+
+  const updateCanvasSize = () => {
+    if (pendingWidth <= 0 || pendingHeight <= 0) {
+      return;
+    }
+    if (pendingWidth === width && pendingHeight === height) {
+      return;
+    }
+    width = pendingWidth;
+    height = pendingHeight;
     const scale = devicePixelRatio || 1;
     canvas.width = width * scale;
     canvas.height = height * scale;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  };
+
+  const updateStarCount = () => {
     const targetCount = Math.floor((width * height) / 12000);
     if (stars.length === 0) {
-      stars = Array.from({ length: targetCount }, () => createStar(width, height));
+      stars = Array.from({ length: targetCount }, () => createStar());
     } else {
-      stars = stars.map((star) => ({
-        ...star,
-        x: (star.x / previousWidth) * width,
-        y: (star.y / previousHeight) * height,
-      }));
       if (stars.length < targetCount) {
         stars.push(
-          ...Array.from({ length: targetCount - stars.length }, () =>
-            createStar(width, height)
-          )
+          ...Array.from({ length: targetCount - stars.length }, () => createStar())
         );
       } else if (stars.length > targetCount) {
         stars = stars.slice(0, targetCount);
       }
     }
+  };
+
+  const handleResize = () => {
+    readCanvasSize();
+    updateCanvasSize();
+    if (stars.length === 0) {
+      updateStarCount();
+    }
+    if (resizeIdleHandle) {
+      window.clearTimeout(resizeIdleHandle);
+    }
+    resizeIdleHandle = window.setTimeout(() => {
+      updateStarCount();
+      resizeIdleHandle = null;
+    }, 240);
   };
 
   const render = () => {
@@ -53,9 +76,11 @@ export function initStarfield() {
         star.twinkle += star.speed;
       }
       const glow = 0.5 + Math.sin(star.twinkle) * 0.5;
+      const x = star.x * width;
+      const y = star.y * height;
       ctx.beginPath();
       ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha * glow})`;
-      ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+      ctx.arc(x, y, star.radius, 0, Math.PI * 2);
       ctx.fill();
     }
     if (!prefersReducedMotion.matches) {
@@ -63,17 +88,19 @@ export function initStarfield() {
     }
   };
 
-  resize();
+  handleResize();
   render();
-  window.addEventListener("resize", () => {
-    if (resizeHandle) {
-      window.clearTimeout(resizeHandle);
+  const resizeObserver = new ResizeObserver(() => {
+    readCanvasSize();
+    if (resizeFrame) {
+      cancelAnimationFrame(resizeFrame);
     }
-    resizeHandle = window.setTimeout(() => {
-      resize();
-      resizeHandle = null;
-    }, 120);
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = null;
+      handleResize();
+    });
   });
+  resizeObserver.observe(canvas.parentElement ?? canvas);
 }
 
 interface Star {
@@ -85,10 +112,10 @@ interface Star {
   speed: number;
 }
 
-function createStar(width: number, height: number): Star {
+function createStar(): Star {
   return {
-    x: Math.random() * width,
-    y: Math.random() * height,
+    x: Math.random(),
+    y: Math.random(),
     radius: Math.random() * 1.6 + 0.2,
     alpha: Math.random() * 0.8 + 0.2,
     twinkle: Math.random() * Math.PI * 2,
