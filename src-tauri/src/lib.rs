@@ -119,16 +119,17 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
     state.set_status(ModelStatus::Loading { progress: 0.1 });
     emit_status(&app, state.get_status());
 
-    let state_clone = state.clone();
-    tauri::async_runtime::spawn(async move {
+    let state_clone = state.inner().clone();
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
         let steps = [0.25, 0.45, 0.7, 0.9, 1.0];
         for progress in steps {
             std::thread::sleep(Duration::from_millis(360));
             state_clone.set_status(ModelStatus::Loading { progress });
-            emit_status(&app, state_clone.get_status());
+            emit_status(&app_clone, state_clone.get_status());
         }
         state_clone.set_status(ModelStatus::Ready);
-        emit_status(&app, state_clone.get_status());
+        emit_status(&app_clone, state_clone.get_status());
     });
 
     Ok(state.get_status())
