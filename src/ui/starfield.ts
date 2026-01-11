@@ -13,9 +13,10 @@ export function initStarfield() {
   const resize = () => {
     width = canvas.clientWidth;
     height = canvas.clientHeight;
-    canvas.width = width * devicePixelRatio;
-    canvas.height = height * devicePixelRatio;
-    ctx.scale(devicePixelRatio, devicePixelRatio);
+    const scale = devicePixelRatio || 1;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
     stars = Array.from({ length: Math.floor((width * height) / 12000) }, () =>
       createStar(width, height)
     );
