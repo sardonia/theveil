@@ -48,16 +48,14 @@ export function renderValidationErrors(
 }
 
 export function renderRoute(route: AppState["ui"]["route"]) {
+  const card = document.querySelector<HTMLElement>("#reading-card");
   const welcome = document.querySelector<HTMLElement>("#welcome-view");
   const reading = document.querySelector<HTMLElement>("#reading-view");
-  if (!welcome || !reading) return;
-  if (route === "welcome") {
-    welcome.classList.add("view--active");
-    reading.classList.remove("view--active");
-  } else {
-    welcome.classList.remove("view--active");
-    reading.classList.add("view--active");
-  }
+  if (!card || !welcome || !reading) return;
+  const isReading = route === "reading";
+  card.classList.toggle("flip-card--flipped", isReading);
+  welcome.setAttribute("aria-hidden", String(isReading));
+  reading.setAttribute("aria-hidden", String(!isReading));
 }
 
 export function renderModelStatus(status: AppState["model"]["status"]) {
