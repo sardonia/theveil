@@ -15,7 +15,9 @@
       {
         "title": "the-veil",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "minWidth": 1300,
+        "minHeight": 1200
       }
     ],
     "security": {
