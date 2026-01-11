@@ -9,17 +9,41 @@ export function initStarfield() {
   let width = 0;
   let height = 0;
   let stars: Star[] = [];
+  let resizeHandle: number | null = null;
 
   const resize = () => {
-    width = canvas.clientWidth;
-    height = canvas.clientHeight;
+    const nextWidth = canvas.clientWidth;
+    const nextHeight = canvas.clientHeight;
+    if (nextWidth === 0 || nextHeight === 0) {
+      return;
+    }
+    const previousWidth = width || nextWidth;
+    const previousHeight = height || nextHeight;
+    width = nextWidth;
+    height = nextHeight;
     const scale = devicePixelRatio || 1;
     canvas.width = width * scale;
     canvas.height = height * scale;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    stars = Array.from({ length: Math.floor((width * height) / 12000) }, () =>
-      createStar(width, height)
-    );
+    const targetCount = Math.floor((width * height) / 12000);
+    if (stars.length === 0) {
+      stars = Array.from({ length: targetCount }, () => createStar(width, height));
+    } else {
+      stars = stars.map((star) => ({
+        ...star,
+        x: (star.x / previousWidth) * width,
+        y: (star.y / previousHeight) * height,
+      }));
+      if (stars.length < targetCount) {
+        stars.push(
+          ...Array.from({ length: targetCount - stars.length }, () =>
+            createStar(width, height)
+          )
+        );
+      } else if (stars.length > targetCount) {
+        stars = stars.slice(0, targetCount);
+      }
+    }
   };
 
   const render = () => {
@@ -41,7 +65,15 @@ export function initStarfield() {
 
   resize();
   render();
-  window.addEventListener("resize", resize);
+  window.addEventListener("resize", () => {
+    if (resizeHandle) {
+      window.clearTimeout(resizeHandle);
+    }
+    resizeHandle = window.setTimeout(() => {
+      resize();
+      resizeHandle = null;
+    }, 120);
+  });
 }
 
 interface Star {
