@@ -134,18 +134,22 @@ body {
 
 .flip-card__face--front {
   pointer-events: auto;
+  z-index: 2;
 }
 
 .flip-card--flipped .flip-card__face--front {
   pointer-events: none;
+  z-index: 1;
 }
 
 .flip-card--flipped .flip-card__face--back {
   pointer-events: auto;
+  z-index: 2;
 }
 
 .flip-card__face--back {
   transform: rotateY(180deg);
+  z-index: 1;
 }
 
 .glass-card {
@@ -464,26 +468,6 @@ body {
 @media (max-width: 640px) {
   .glass-card {
     padding: 1.8rem;
-  }
-
-  .flip-card {
-    width: 100%;
-    height: auto;
-    min-height: 640px;
-  }
-
-  .flip-card__inner {
-    height: auto;
-    min-height: 640px;
-  }
-
-  .flip-card__face {
-    position: relative;
-    transform: none;
-  }
-
-  .flip-card--flipped .flip-card__inner {
-    transform: none;
   }
 
   .reading__return {
