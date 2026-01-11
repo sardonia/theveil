@@ -4,40 +4,127 @@
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri App</title>
+    <title>Veil — Daily Horoscope</title>
     <script type="module" src="/src/main.ts" defer></script>
   </head>
 
   <body>
-    <main class="container">
-      <h1>Welcome to Tauri</h1>
+    <canvas id="starfield" aria-hidden="true"></canvas>
+    <div id="app" class="app" aria-live="polite">
+      <header class="app__header">
+        <p class="app__eyebrow">Veil</p>
+        <h1 class="app__title">A gentle mirror for your day</h1>
+        <p class="app__subtitle">
+          A daily reading crafted offline, with calm guidance and luminous
+          perspective.
+        </p>
+      </header>
 
-      <div class="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/src/assets/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img
-            src="/src/assets/tauri.svg"
-            class="logo tauri"
-            alt="Tauri logo"
-          />
-        </a>
-        <a href="https://www.typescriptlang.org/docs" target="_blank">
-          <img
-            src="/src/assets/typescript.svg"
-            class="logo typescript"
-            alt="typescript logo"
-          />
-        </a>
-      </div>
-      <p>Click on the Tauri logo to learn more about the framework</p>
+      <main class="app__main">
+        <section id="welcome-view" class="view view--active" aria-labelledby="welcome-title">
+          <div class="glass-card">
+            <div class="glass-card__glow"></div>
+            <h2 id="welcome-title">Meet the stars</h2>
+            <p class="muted">
+              Share a few details and we will pull together a message that feels
+              true to you.
+            </p>
 
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
-      </form>
-      <p id="greet-msg"></p>
-    </main>
+            <form id="profile-form" class="form">
+              <label class="field">
+                <span>Name</span>
+                <input type="text" name="name" id="name-input" placeholder="Your name" autocomplete="name" />
+                <span class="field__error" data-error-for="name"></span>
+              </label>
+
+              <label class="field">
+                <span>Birthdate</span>
+                <input type="date" name="birthdate" id="birthdate-input" />
+                <span class="field__error" data-error-for="birthdate"></span>
+              </label>
+
+              <label class="field">
+                <span>Current mood</span>
+                <select name="mood" id="mood-input"></select>
+                <span class="field__error" data-error-for="mood"></span>
+              </label>
+
+              <label class="field">
+                <span>Personality</span>
+                <select name="personality" id="personality-input"></select>
+                <span class="field__error" data-error-for="personality"></span>
+              </label>
+
+              <div class="model-status" id="model-status">
+                <div class="model-status__icon"></div>
+                <div>
+                  <p class="model-status__label">Consulting the constellations…</p>
+                  <div class="progress">
+                    <div class="progress__bar" id="model-progress"></div>
+                  </div>
+                </div>
+              </div>
+
+              <button class="primary-button" type="submit">
+                Reveal my reading
+                <span class="button-shimmer"></span>
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <section id="reading-view" class="view" aria-labelledby="reading-title">
+          <div class="glass-card">
+            <div class="glass-card__glow"></div>
+            <header class="reading__header">
+              <p class="reading__date" id="reading-date"></p>
+              <h2 id="reading-title">Your message for today</h2>
+              <p class="reading__title" id="reading-title-text"></p>
+              <p class="reading__sub" id="reading-subtitle"></p>
+            </header>
+
+            <div class="reading__body" id="reading-body">
+              <p class="reading__message"></p>
+              <div class="reading__themes">
+                <h3>Themes to notice</h3>
+                <ul id="reading-themes"></ul>
+              </div>
+              <div class="reading__meta">
+                <div>
+                  <h4>Affirmation</h4>
+                  <p id="reading-affirmation"></p>
+                </div>
+                <div>
+                  <h4>Lucky color</h4>
+                  <p id="reading-color"></p>
+                </div>
+                <div>
+                  <h4>Lucky number</h4>
+                  <p id="reading-number"></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="reading__loading" id="reading-loading" hidden>
+              <div class="spinner"></div>
+              <p>Weaving your message…</p>
+            </div>
+
+            <div class="reading__actions">
+              <button class="secondary-button" id="edit-profile">Edit my details</button>
+              <button class="primary-button" id="regenerate">
+                Ask the stars again
+                <span class="button-shimmer"></span>
+              </button>
+              <button class="ghost-button" id="copy-reading">Copy to clipboard</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="app__footer">
+        <p>For reflection and entertainment. Your intuition matters most.</p>
+      </footer>
+    </div>
   </body>
 </html>
