@@ -14,6 +14,9 @@
   --accent: #a987ff;
   --accent-soft: #7de4ff;
   --shadow: 0 20px 60px rgba(5, 7, 20, 0.55);
+  --surface: rgba(15, 17, 34, 0.72);
+  --surface-strong: rgba(10, 12, 26, 0.9);
+  --text-muted: rgba(245, 247, 255, 0.7);
 }
 
 * {
@@ -27,7 +30,8 @@ body {
     radial-gradient(circle at 20% 20%, rgba(68, 209, 255, 0.25), transparent 50%),
     radial-gradient(circle at 80% 10%, rgba(255, 143, 192, 0.2), transparent 45%),
     #0b0b15;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 #starfield {
@@ -36,6 +40,7 @@ body {
   width: 100%;
   height: 100%;
   z-index: 0;
+  pointer-events: none;
 }
 
 .app {
@@ -44,8 +49,10 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
-  padding: 3.5rem 6vw 2.5rem;
+  gap: 2.5rem;
+  padding: clamp(2.5rem, 4vw, 4.5rem) clamp(1.5rem, 6vw, 6rem) 3rem;
+  max-width: 1440px;
+  margin: 0 auto;
 }
 
 .app__header {
@@ -61,31 +68,35 @@ body {
 }
 
 .app__title {
-  font-size: clamp(2.2rem, 4vw, 3.4rem);
-  margin: 0 0 0.4rem;
+  font-size: clamp(2.4rem, 4.6vw, 3.8rem);
+  margin: 0 0 0.6rem;
   background: linear-gradient(120deg, #ffffff 20%, var(--accent-soft) 50%, var(--accent) 90%);
   -webkit-background-clip: text;
   color: transparent;
+  letter-spacing: -0.02em;
 }
 
 .app__subtitle {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-muted);
   max-width: 520px;
+  font-size: 1.05rem;
 }
 
 .app__main {
   flex: 1;
-  display: grid;
-  place-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 .app__footer {
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.55);
+  max-width: 720px;
 }
 
 .view {
-  width: min(720px, 92vw);
+  width: min(1440px, 94vw);
   opacity: 0;
   pointer-events: none;
   transform: translateY(20px);
@@ -100,12 +111,12 @@ body {
 
 .glass-card {
   position: relative;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 24px;
-  padding: 2.5rem;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(18px);
+  background: linear-gradient(165deg, var(--surface), rgba(12, 14, 26, 0.88));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
+  padding: clamp(2rem, 3vw, 2.75rem);
+  box-shadow: 0 30px 80px rgba(5, 7, 20, 0.5);
+  backdrop-filter: blur(22px);
   overflow: hidden;
 }
 
@@ -118,10 +129,15 @@ body {
   pointer-events: none;
 }
 
+.glass-card h2 {
+  font-size: 1.6rem;
+  margin: 0 0 0.6rem;
+}
+
 .form {
   margin-top: 2rem;
   display: grid;
-  gap: 1.25rem;
+  gap: 1.4rem;
 }
 
 .field {
@@ -133,11 +149,11 @@ body {
 
 .field input,
 .field select {
-  background: rgba(7, 10, 25, 0.6);
+  background: var(--surface-strong);
   color: #f5f7ff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
-  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
   font-size: 1rem;
   transition: border 0.2s ease, box-shadow 0.2s ease;
 }
@@ -210,10 +226,10 @@ body {
   display: flex;
   gap: 0.9rem;
   align-items: center;
-  padding: 0.85rem 1rem;
-  border-radius: 16px;
-  background: rgba(10, 12, 28, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.95rem 1.1rem;
+  border-radius: 18px;
+  background: rgba(10, 12, 28, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .model-status__icon {
@@ -312,6 +328,7 @@ body {
 
 .muted {
   color: rgba(255, 255, 255, 0.65);
+  font-size: 0.98rem;
 }
 
 @keyframes spin {
@@ -350,5 +367,16 @@ body {
   .reading__actions {
     flex-direction: column;
     align-items: stretch;
+  }
+}
+
+@media (min-width: 900px) {
+  .form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .form .model-status,
+  .form .primary-button {
+    grid-column: 1 / -1;
   }
 }
