@@ -111,6 +111,8 @@ body {
   height: 640px;
   perspective: 1400px;
   perspective-origin: center;
+  -webkit-perspective: 1400px;
+  -webkit-perspective-origin: center;
   filter: drop-shadow(0 30px 80px rgba(5, 7, 20, 0.5));
 }
 
@@ -136,6 +138,8 @@ body {
   -webkit-backface-visibility: hidden;
   pointer-events: none;
   transition: opacity 0.35s ease;
+  transform: translateZ(0);
+  visibility: visible;
 }
 
 .flip-card__face--front {
@@ -157,14 +161,17 @@ body {
   transform: rotateY(180deg);
   z-index: 1;
   opacity: 0;
+  visibility: hidden;
 }
 
 .flip-card--flipped .flip-card__face--back {
   opacity: 1;
+  visibility: visible;
 }
 
 .flip-card--flipped .flip-card__face--front {
   opacity: 0;
+  visibility: hidden;
 }
 
 @supports not (transform-style: preserve-3d) {
