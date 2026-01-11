@@ -127,6 +127,10 @@ body {
   margin: 0 auto;
 }
 
+.glass-card--welcome {
+  width: min(620px, 100%);
+}
+
 .glass-card__glow {
   position: absolute;
   inset: -40% 0 auto;
