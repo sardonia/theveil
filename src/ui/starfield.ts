@@ -75,8 +75,10 @@ export function initStarfield() {
 
   const render = () => {
     ctx.clearRect(0, 0, width, height);
+    const now = performance.now();
+    const shouldTwinkle = !prefersReducedMotion.matches && (!isResizing || now - lastResizeAt > 240);
     for (const star of stars) {
-      if (!prefersReducedMotion.matches) {
+      if (shouldTwinkle) {
         star.twinkle += star.speed;
       }
       const glow = 0.5 + Math.sin(star.twinkle) * 0.5;
@@ -120,10 +122,10 @@ interface Star {
   speed: number;
 }
 
-function createStar(width: number, height: number): Star {
+function createStar(): Star {
   return {
-    x: Math.random() * width,
-    y: Math.random() * height,
+    x: Math.random(),
+    y: Math.random(),
     radius: Math.random() * 1.6 + 0.2,
     alpha: Math.random() * 0.8 + 0.2,
     twinkle: Math.random() * Math.PI * 2,
