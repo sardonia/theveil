@@ -21,102 +21,132 @@
       </header>
 
       <main class="app__main">
-        <section id="welcome-view" class="view view--active" aria-labelledby="welcome-title">
-          <div class="glass-card glass-card--welcome">
-            <div class="glass-card__glow"></div>
-            <h2 id="welcome-title">Meet the stars</h2>
-            <p class="muted">
-              Share a few details and we will pull together a message that feels
-              true to you.
-            </p>
+        <section class="card-stage" aria-live="polite">
+          <div class="flip-card" id="reading-card">
+            <div class="flip-card__inner">
+              <div
+                id="welcome-view"
+                class="flip-card__face flip-card__face--front"
+                aria-labelledby="welcome-title"
+              >
+                <div class="glass-card glass-card--welcome">
+                  <div class="glass-card__glow"></div>
+                  <h2 id="welcome-title">Meet the stars</h2>
+                  <p class="muted">
+                    Share a few details and we will pull together a message that feels
+                    true to you.
+                  </p>
 
-            <form id="profile-form" class="form">
-              <label class="field">
-                <span>Name</span>
-                <input type="text" name="name" id="name-input" placeholder="Your name" autocomplete="name" />
-                <span class="field__error" data-error-for="name"></span>
-              </label>
+                  <form id="profile-form" class="form">
+                    <label class="field">
+                      <span>Name</span>
+                      <input
+                        type="text"
+                        name="name"
+                        id="name-input"
+                        placeholder="Your name"
+                        autocomplete="name"
+                      />
+                      <span class="field__error" data-error-for="name"></span>
+                    </label>
 
-              <label class="field">
-                <span>Birthdate</span>
-                <input type="date" name="birthdate" id="birthdate-input" />
-                <span class="field__error" data-error-for="birthdate"></span>
-              </label>
+                    <label class="field">
+                      <span>Birthdate</span>
+                      <input type="date" name="birthdate" id="birthdate-input" />
+                      <span class="field__error" data-error-for="birthdate"></span>
+                    </label>
 
-              <label class="field">
-                <span>Current mood</span>
-                <select name="mood" id="mood-input"></select>
-                <span class="field__error" data-error-for="mood"></span>
-              </label>
+                    <label class="field">
+                      <span>Current mood</span>
+                      <select name="mood" id="mood-input"></select>
+                      <span class="field__error" data-error-for="mood"></span>
+                    </label>
 
-              <label class="field">
-                <span>Personality</span>
-                <select name="personality" id="personality-input"></select>
-                <span class="field__error" data-error-for="personality"></span>
-              </label>
+                    <label class="field">
+                      <span>Personality</span>
+                      <select name="personality" id="personality-input"></select>
+                      <span class="field__error" data-error-for="personality"></span>
+                    </label>
 
-              <div class="model-status" id="model-status">
-                <div class="model-status__icon"></div>
-                <div>
-                  <p class="model-status__label">Consulting the constellations…</p>
-                  <div class="progress">
-                    <div class="progress__bar" id="model-progress"></div>
+                    <div class="model-status" id="model-status">
+                      <div class="model-status__icon"></div>
+                      <div>
+                        <p class="model-status__label">Consulting the constellations…</p>
+                        <div class="progress">
+                          <div class="progress__bar" id="model-progress"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button class="primary-button" type="submit">
+                      Reveal my reading
+                      <span class="button-shimmer"></span>
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <div
+                id="reading-view"
+                class="flip-card__face flip-card__face--back"
+                aria-labelledby="reading-title"
+                aria-hidden="true"
+              >
+                <div class="glass-card glass-card--reading">
+                  <div class="glass-card__glow"></div>
+                  <header class="reading__header">
+                    <p class="reading__date" id="reading-date"></p>
+                    <h2 id="reading-title">Your message for today</h2>
+                    <p class="reading__title" id="reading-title-text"></p>
+                    <p class="reading__sub" id="reading-subtitle"></p>
+                  </header>
+
+                  <div class="reading__return">
+                    <div>
+                      <p class="reading__return-title">Need a new reflection?</p>
+                      <p class="reading__return-sub">Update your details and ask again.</p>
+                    </div>
+                    <button class="ghost-button" id="edit-profile">Back to details</button>
+                  </div>
+
+                  <div class="reading__body" id="reading-body">
+                    <div class="reading__stream">
+                      <p class="reading__message"></p>
+                    </div>
+                    <div class="reading__themes">
+                      <h3>Themes to notice</h3>
+                      <ul id="reading-themes"></ul>
+                    </div>
+                    <div class="reading__meta">
+                      <div>
+                        <h4>Affirmation</h4>
+                        <p id="reading-affirmation"></p>
+                      </div>
+                      <div>
+                        <h4>Lucky color</h4>
+                        <p id="reading-color"></p>
+                      </div>
+                      <div>
+                        <h4>Lucky number</h4>
+                        <p id="reading-number"></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="reading__loading" id="reading-loading" hidden>
+                    <div class="spinner"></div>
+                    <p>Weaving your message…</p>
+                  </div>
+
+                  <div class="reading__actions">
+                    <button class="primary-button" id="regenerate">
+                      Ask the stars again
+                      <span class="button-shimmer"></span>
+                    </button>
+                    <button class="ghost-button" id="copy-reading">Copy to clipboard</button>
                   </div>
                 </div>
               </div>
-
-              <button class="primary-button" type="submit">
-                Reveal my reading
-                <span class="button-shimmer"></span>
-              </button>
-            </form>
-          </div>
-        </section>
-
-        <section id="reading-view" class="view" aria-labelledby="reading-title">
-          <div class="glass-card">
-            <div class="glass-card__glow"></div>
-            <header class="reading__header">
-              <p class="reading__date" id="reading-date"></p>
-              <h2 id="reading-title">Your message for today</h2>
-              <p class="reading__title" id="reading-title-text"></p>
-              <p class="reading__sub" id="reading-subtitle"></p>
-            </header>
-
-            <div class="reading__body" id="reading-body">
-              <p class="reading__message"></p>
-              <div class="reading__themes">
-                <h3>Themes to notice</h3>
-                <ul id="reading-themes"></ul>
-              </div>
-              <div class="reading__meta">
-                <div>
-                  <h4>Affirmation</h4>
-                  <p id="reading-affirmation"></p>
-                </div>
-                <div>
-                  <h4>Lucky color</h4>
-                  <p id="reading-color"></p>
-                </div>
-                <div>
-                  <h4>Lucky number</h4>
-                  <p id="reading-number"></p>
-                </div>
-              </div>
-            </div>
-
-            <div class="reading__loading" id="reading-loading" hidden>
-              <div class="spinner"></div>
-              <p>Weaving your message…</p>
-            </div>
-
-            <div class="reading__actions">
-              <button class="secondary-button" id="edit-profile">Edit my details</button>
-              <button class="primary-button" id="regenerate">
-                Ask the stars again
-                <span class="button-shimmer"></span>
-              </button>
-              <button class="ghost-button" id="copy-reading">Copy to clipboard</button>
             </div>
           </div>
         </section>
