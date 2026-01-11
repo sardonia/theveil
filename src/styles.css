@@ -127,6 +127,10 @@ body {
   margin: 0 auto;
 }
 
+.glass-card--welcome {
+  width: min(680px, 100%);
+}
+
 .glass-card__glow {
   position: absolute;
   inset: -40% 0 auto;
@@ -222,11 +226,12 @@ body {
   inset: 0;
   background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.7) 50%, transparent 70%);
   transform: translateX(-120%);
-  transition: transform 0.5s ease;
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 .primary-button:hover .button-shimmer {
-  transform: translateX(120%);
+  animation: shimmer-sweep 0.6s ease;
 }
 
 .model-status {
@@ -353,6 +358,15 @@ body {
   50% {
     transform: scale(1.1);
     opacity: 1;
+  }
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
   }
 }
 
