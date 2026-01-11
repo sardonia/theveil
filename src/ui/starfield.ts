@@ -32,12 +32,17 @@ export function initStarfield() {
     if (pendingWidth === width && pendingHeight === height) {
       return;
     }
+    const previousWidth = width;
+    const previousHeight = height;
     width = pendingWidth;
     height = pendingHeight;
     const scale = devicePixelRatio || 1;
     canvas.width = width * scale;
     canvas.height = height * scale;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    if (previousWidth > 0 && previousHeight > 0) {
+      resizeStarsToViewport(previousWidth, previousHeight);
+    }
   };
 
   const ensureBaseSize = () => {
@@ -53,19 +58,32 @@ export function initStarfield() {
   const updateStarCount = () => {
     ensureBaseSize();
     const targetCount = Math.floor((baseWidth * baseHeight) / 12000);
+    const fieldWidth = width || baseWidth;
+    const fieldHeight = height || baseHeight;
     if (stars.length === 0) {
-      stars = Array.from({ length: targetCount }, () => createStar(baseWidth, baseHeight));
+      stars = Array.from({ length: targetCount }, () => createStar(fieldWidth, fieldHeight));
     } else {
       if (stars.length < targetCount) {
         stars.push(
           ...Array.from({ length: targetCount - stars.length }, () =>
-            createStar(baseWidth, baseHeight)
+            createStar(fieldWidth, fieldHeight)
           )
         );
       } else if (stars.length > targetCount) {
         stars = stars.slice(0, targetCount);
       }
     }
+  };
+
+  const resizeStarsToViewport = (previousWidth: number, previousHeight: number) => {
+    if (!width || !height) return;
+    const scaleX = width / previousWidth;
+    const scaleY = height / previousHeight;
+    stars = stars.map((star) => ({
+      ...star,
+      x: star.x * scaleX,
+      y: star.y * scaleY,
+    }));
   };
 
   const handleResize = () => {
@@ -122,10 +140,10 @@ interface Star {
   speed: number;
 }
 
-function createStar(): Star {
+function createStar(width: number, height: number): Star {
   return {
-    x: Math.random(),
-    y: Math.random(),
+    x: Math.random() * width,
+    y: Math.random() * height,
     radius: Math.random() * 1.6 + 0.2,
     alpha: Math.random() * 0.8 + 0.2,
     twinkle: Math.random() * Math.PI * 2,
