@@ -203,7 +203,7 @@ pub enum StreamEvent {
 #[tauri::command]
 async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<ModelStatus, String> {
     let status = state.get_status();
-    if matches!(status, ModelStatus::Loading { .. } | ModelStatus::Ready) {
+    if matches!(status, ModelStatus::Loading { .. } | ModelStatus::Ready { .. }) {
         return Ok(status);
     }
 
