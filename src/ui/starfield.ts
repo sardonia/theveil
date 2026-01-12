@@ -14,7 +14,7 @@ export function initStarfield() {
   let resizeFrame: number | null = null;
   let pendingWidth = 0;
   let pendingHeight = 0;
-  let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+  let resizeTimeout: number | null = null;  // or NodeJS.Timeout | number | null if you need both
   let isResizing = false;
   let lastResizeAt = 0;
 
@@ -89,19 +89,22 @@ export function initStarfield() {
     }));
   };
 
-  const handleResize = () => {
-    isResizing = true;
-    lastResizeAt = performance.now();
-    if (resizeTimeout) {
-      window.clearTimeout(resizeTimeout);
-    }
-    resizeTimeout = window.setTimeout(() => {
-      isResizing = false;
-    }, 280);
-    readCanvasSize();
-    updateCanvasSize();
-    updateStarCount();
-  };
+const handleResize = () => {
+  isResizing = true;
+  lastResizeAt = performance.now();
+
+  if (resizeTimeout !== null) {
+    window.clearTimeout(resizeTimeout);
+  }
+
+  resizeTimeout = window.setTimeout(() => {
+    isResizing = false;
+  }, 280);
+
+  readCanvasSize();
+  updateCanvasSize();
+  updateStarCount();
+};
 
   const render = () => {
     ctx.clearRect(0, 0, width, height);
@@ -130,17 +133,29 @@ export function initStarfield() {
   handleResize();
   updateStarCount();
   render();
-  const resizeObserver = new ResizeObserver(() => {
-    readCanvasSize();
-    if (resizeFrame) {
-      cancelAnimationFrame(resizeFrame);
-    }
-    resizeFrame = requestAnimationFrame(() => {
-      resizeFrame = null;
-      handleResize();
+
+  // NOTE: Tauri on macOS uses WKWebView, whose feature set depends on the
+  // user's OS/WebKit version. Some older versions do not implement
+  // ResizeObserver, which would throw a ReferenceError and stop the rest of
+  // the app from initializing.
+  //
+  // We use ResizeObserver when available (best behavior), and fall back to a
+  // window 'resize' listener otherwise.
+  if (typeof ResizeObserver !== "undefined") {
+    const resizeObserver = new ResizeObserver(() => {
+      readCanvasSize();
+      if (resizeFrame) {
+        cancelAnimationFrame(resizeFrame);
+      }
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        handleResize();
+      });
     });
-  });
-  resizeObserver.observe(canvas.parentElement ?? canvas);
+    resizeObserver.observe(canvas.parentElement ?? canvas);
+  } else {
+    window.addEventListener("resize", handleResize);
+  }
 }
 
 interface Star {

@@ -114,9 +114,17 @@ store.subscribe(
 
 window.addEventListener("DOMContentLoaded", () => {
   populateSelects();
-  initStarfield();
   bindForm();
   bindActions();
   renderInitial(store.getState());
   initModel();
+
+  // Starfield is a purely decorative enhancement. If it fails to initialize
+  // (e.g., older WKWebView builds on macOS missing APIs like ResizeObserver),
+  // the rest of the app must still be interactive.
+  try {
+    initStarfield();
+  } catch (error) {
+    console.warn("Starfield failed to initialize; continuing without it.", error);
+  }
 });
