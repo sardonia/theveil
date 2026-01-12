@@ -4,6 +4,24 @@ import { zodiacSign } from "../domain/zodiac";
 import { debugLog, isDebugEnabled } from "../debug/logger";
 
 let routeTransitionToken = 0;
+const MIN_LOADING_MS = 1200;
+let loadingShownAt: number | null = null;
+let loadingHideTimeout: number | null = null;
+
+function scheduleLoadingHide(loadingShell: HTMLElement) {
+  if (loadingHideTimeout !== null) {
+    window.clearTimeout(loadingHideTimeout);
+  }
+  const elapsed = loadingShownAt ? Date.now() - loadingShownAt : MIN_LOADING_MS;
+  const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+  if (remaining === 0) {
+    loadingShell.classList.add("is-hidden");
+    return;
+  }
+  loadingHideTimeout = window.setTimeout(() => {
+    loadingShell.classList.add("is-hidden");
+  }, remaining);
+}
 
 export function populateSelects() {
   const moodSelect = document.querySelector<HTMLSelectElement>("#mood-input");
@@ -157,7 +175,16 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     if (loadingProgress) {
       loadingProgress.style.width = `${Math.round(status.progress * 100)}%`;
     }
-    loadingShell?.classList.remove("is-hidden");
+    if (loadingShell) {
+      loadingShell.classList.remove("is-hidden");
+      if (!loadingShownAt) {
+        loadingShownAt = Date.now();
+      }
+      if (loadingHideTimeout !== null) {
+        window.clearTimeout(loadingHideTimeout);
+        loadingHideTimeout = null;
+      }
+    }
   } else if (status.status === "ready") {
     const sizeLabel = Number.isFinite(status.modelSizeMb)
       ? ` (${status.modelSizeMb.toFixed(1)} MB)`
@@ -166,19 +193,33 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     progress.style.width = "100%";
     if (loadingLabel) loadingLabel.textContent = "The stars are ready.";
     if (loadingProgress) loadingProgress.style.width = "100%";
-    loadingShell?.classList.add("is-hidden");
+    if (loadingShell) {
+      scheduleLoadingHide(loadingShell);
+    }
   } else if (status.status === "error") {
     label.textContent = "We will use a gentle offline reading.";
     progress.style.width = "100%";
     if (loadingLabel) loadingLabel.textContent = "App failed to load.";
     if (loadingProgress) loadingProgress.style.width = "100%";
-    loadingShell?.classList.remove("is-hidden");
+    if (loadingShell) {
+      loadingShell.classList.remove("is-hidden");
+      loadingShownAt = null;
+    }
   } else {
     label.textContent = "Preparing the star map…";
     progress.style.width = "0%";
     if (loadingLabel) loadingLabel.textContent = "Preparing the star map…";
     if (loadingProgress) loadingProgress.style.width = "0%";
-    loadingShell?.classList.remove("is-hidden");
+    if (loadingShell) {
+      loadingShell.classList.remove("is-hidden");
+      if (!loadingShownAt) {
+        loadingShownAt = Date.now();
+      }
+      if (loadingHideTimeout !== null) {
+        window.clearTimeout(loadingHideTimeout);
+        loadingHideTimeout = null;
+      }
+    }
   }
 }
 
