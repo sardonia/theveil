@@ -75,6 +75,21 @@ pub trait HoroscopeModelBackend: Send + Sync {
     ) -> Result<String, String>;
 }
 
+#[derive(Clone, Copy, Debug)]
+enum ReadingSource {
+    Model,
+    Stub,
+}
+
+impl ReadingSource {
+    fn as_str(self) -> &'static str {
+        match self {
+            ReadingSource::Model => "model",
+            ReadingSource::Stub => "stub",
+        }
+    }
+}
+
 pub struct StubBackend;
 
 impl HoroscopeModelBackend for StubBackend {
@@ -163,11 +178,13 @@ impl ModelManager {
         }
     }
 
-    fn backend(&self) -> Arc<dyn HoroscopeModelBackend> {
-        self.backend
-            .lock()
-            .map(|backend| backend.clone())
-            .unwrap_or_else(|_| Arc::new(StubBackend))
+    fn select_backend(&self) -> (Arc<dyn HoroscopeModelBackend>, ReadingSource) {
+        if matches!(self.get_status(), ModelStatus::Ready { .. }) {
+            if let Ok(backend) = self.backend.lock() {
+                return (backend.clone(), ReadingSource::Model);
+            }
+        }
+        (Arc::new(StubBackend), ReadingSource::Stub)
     }
 }
 
@@ -281,10 +298,21 @@ async fn generate_horoscope(
         sampling: SamplingParams::default(),
     };
 
-    let json = state
-        .backend()
-        .generate_json(&request, &request.sampling)?;
-    parse_reading_json(json, state.get_status())
+    let (backend, source) = state.select_backend();
+    let result = backend
+        .generate_json(&request, &request.sampling)
+        .and_then(|json| parse_reading_json(json, source));
+    match result {
+        Ok(reading) => Ok(reading),
+        Err(error) => {
+            if matches!(source, ReadingSource::Model) {
+                eprintln!("Model inference failed, falling back to stub: {}", error);
+                Ok(generate_stub_reading(&request))
+            } else {
+                Err(error)
+            }
+        }
+    }
 }
 
 #[tauri::command]
@@ -303,11 +331,11 @@ async fn generate_horoscope_stream(
         sampling: sampling.unwrap_or_default(),
     };
 
+    let (backend, source) = state.select_backend();
     emit_stream_event(&app, StreamEvent::Start);
-    let result = state
-        .backend()
+    let result = backend
         .generate_json(&request, &request.sampling)
-        .and_then(|json| parse_reading_json(json, state.get_status()));
+        .and_then(|json| parse_reading_json(json, source));
     match result {
         Ok(reading) => {
             stream_message(&app, &reading.message);
@@ -315,8 +343,16 @@ async fn generate_horoscope_stream(
             Ok(reading)
         }
         Err(error) => {
-            emit_stream_event(&app, StreamEvent::End);
-            Err(error)
+            if matches!(source, ReadingSource::Model) {
+                eprintln!("Model inference failed, falling back to stub: {}", error);
+                let reading = generate_stub_reading(&request);
+                stream_message(&app, &reading.message);
+                emit_stream_event(&app, StreamEvent::End);
+                Ok(reading)
+            } else {
+                emit_stream_event(&app, StreamEvent::End);
+                Err(error)
+            }
         }
     }
 }
@@ -344,13 +380,9 @@ fn stream_message(app: &AppHandle, message: &str) {
     }
 }
 
-fn parse_reading_json(json: String, status: ModelStatus) -> Result<Reading, String> {
+fn parse_reading_json(json: String, source: ReadingSource) -> Result<Reading, String> {
     let mut reading: Reading = serde_json::from_str(&json).map_err(|error| error.to_string())?;
-    reading.source = if matches!(status, ModelStatus::Loaded { .. }) {
-        "model".to_string()
-    } else {
-        "stub".to_string()
-    };
+    reading.source = source.as_str().to_string();
     Ok(reading)
 }
 

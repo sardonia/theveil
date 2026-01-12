@@ -514,6 +514,13 @@ body {
   color: rgba(255, 255, 255, 0.75);
 }
 
+.reading__source {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 .reading__title {
   font-size: 1.1rem;
   color: rgba(255, 255, 255, 0.9);
