@@ -227,6 +227,7 @@ export function renderReading(reading: Reading | null, profile: ProfileDraft | n
   const dateEl = document.querySelector<HTMLElement>("#reading-date");
   const titleEl = document.querySelector<HTMLElement>("#reading-title-text");
   const subtitleEl = document.querySelector<HTMLElement>("#reading-subtitle");
+  const sourceEl = document.querySelector<HTMLElement>("#reading-source");
   const messageEl = document.querySelector<HTMLElement>(".reading__message");
   const themesEl = document.querySelector<HTMLUListElement>("#reading-themes");
   const affirmationEl = document.querySelector<HTMLElement>("#reading-affirmation");
@@ -236,6 +237,7 @@ export function renderReading(reading: Reading | null, profile: ProfileDraft | n
   if (!reading) {
     if (messageEl) messageEl.textContent = "";
     if (themesEl) themesEl.innerHTML = "";
+    if (sourceEl) sourceEl.textContent = "";
     return;
   }
 
@@ -251,6 +253,9 @@ export function renderReading(reading: Reading | null, profile: ProfileDraft | n
     subtitleEl.textContent = profile
       ? `${profile.name}, ${zodiacSign(profile.birthdate)}`
       : `Sign: ${reading.sign}`;
+  }
+  if (sourceEl) {
+    sourceEl.textContent = `Runtime: ${reading.source === "model" ? "Model" : "Stub"}`;
   }
   if (messageEl) messageEl.textContent = reading.message;
   if (themesEl) {
