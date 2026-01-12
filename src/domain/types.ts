@@ -3,7 +3,12 @@ export type Route = "welcome" | "reading";
 export type ModelStatus =
   | { status: "unloaded" }
   | { status: "loading"; progress: number }
-  | { status: "ready"; modelSizeMb: number }
+  | {
+      status: "loaded";
+      modelPath: string;
+      modelSizeMb: number;
+      modelSizeBytes: number;
+    }
   | { status: "error"; message: string };
 
 export interface SamplingParams {

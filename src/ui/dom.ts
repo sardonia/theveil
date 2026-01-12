@@ -5,15 +5,23 @@ import { debugLog, isDebugEnabled } from "../debug/logger";
 
 let routeTransitionToken = 0;
 const MIN_LOADING_MS = 1200;
+const MIN_LOADED_MS = 1600;
 let loadingShownAt: number | null = null;
 let loadingHideTimeout: number | null = null;
+let loadedShownAt: number | null = null;
+let lastLoadedKey: string | null = null;
 
 function scheduleLoadingHide(loadingShell: HTMLElement) {
   if (loadingHideTimeout !== null) {
     window.clearTimeout(loadingHideTimeout);
   }
   const elapsed = loadingShownAt ? Date.now() - loadingShownAt : MIN_LOADING_MS;
-  const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+  const elapsedLoaded = loadedShownAt ? Date.now() - loadedShownAt : MIN_LOADED_MS;
+  const remaining = Math.max(
+    0,
+    MIN_LOADING_MS - elapsed,
+    MIN_LOADED_MS - elapsedLoaded
+  );
   if (remaining === 0) {
     loadingShell.classList.add("is-hidden");
     return;
@@ -185,16 +193,31 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
         loadingHideTimeout = null;
       }
     }
-  } else if (status.status === "ready") {
+    loadedShownAt = null;
+  } else if (status.status === "loaded") {
     const sizeLabel = Number.isFinite(status.modelSizeMb)
       ? ` (${status.modelSizeMb.toFixed(1)} MB)`
       : "";
-    label.textContent = `Model loaded${sizeLabel}.`;
+    label.textContent = `Model loaded: ${status.modelPath}${sizeLabel}.`;
     progress.style.width = "100%";
     if (loadingLabel) loadingLabel.textContent = "The stars are ready.";
     if (loadingProgress) loadingProgress.style.width = "100%";
     if (loadingShell) {
+      if (!loadedShownAt) {
+        loadedShownAt = Date.now();
+      }
       scheduleLoadingHide(loadingShell);
+    }
+    const loadedKey = `${status.modelPath}|${status.modelSizeBytes}`;
+    if (isDebugEnabled() && loadedKey !== lastLoadedKey) {
+      lastLoadedKey = loadedKey;
+      debugLog("log", "model:loaded", {
+        path: status.modelPath,
+        sizeBytes: status.modelSizeBytes,
+        sizeMb: Number.isFinite(status.modelSizeMb)
+          ? Number(status.modelSizeMb.toFixed(3))
+          : status.modelSizeMb,
+      });
     }
   } else if (status.status === "error") {
     label.textContent = "We will use a gentle offline reading.";
@@ -205,6 +228,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
       loadingShell.classList.remove("is-hidden");
       loadingShownAt = null;
     }
+    loadedShownAt = null;
   } else {
     label.textContent = "Preparing the star map…";
     progress.style.width = "0%";
@@ -220,6 +244,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
         loadingHideTimeout = null;
       }
     }
+    loadedShownAt = null;
   }
 }
 

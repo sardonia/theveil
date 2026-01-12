@@ -19,7 +19,7 @@ export class HoroscopeRepository {
     prompt: string | undefined,
     status: ModelStatus
   ): Promise<Reading> {
-    if (status.status === "ready") {
+    if (status.status === "loaded") {
       try {
         return await this.embeddedAdapter.generate(
           profile,
