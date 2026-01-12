@@ -6,6 +6,16 @@ export type ModelStatus =
   | { status: "ready" }
   | { status: "error"; message: string };
 
+export interface SamplingParams {
+  temperature: number;
+  topP: number;
+  topK: number;
+  repeatPenalty: number;
+  maxTokens: number;
+  seed: number | null;
+  stop: string[];
+}
+
 export interface ProfileDraft {
   name: string;
   birthdate: string;

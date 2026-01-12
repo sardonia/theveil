@@ -6,7 +6,9 @@ import { CommandBus } from "./state/commands";
 import { loadSnapshot, saveSnapshot } from "./state/snapshot";
 import { createStore } from "./state/store";
 import {
+  appendReadingStream,
   populateSelects,
+  resetReadingStream,
   renderBusy,
   renderModelStatus,
   renderProfileDraft,
@@ -25,6 +27,11 @@ import {
   setDebugEnabled,
 } from "./debug/logger";
 
+type StreamEvent =
+  | { kind: "start" }
+  | { kind: "chunk"; chunk: string }
+  | { kind: "end" };
+
 const store = createStore(loadSnapshot());
 const commandBus = new CommandBus({
   getState: store.getState,
@@ -41,6 +48,38 @@ function initModel() {
 
   listen<ModelStatus>("model:status", (event) => {
     commandBus.execute({ type: "ModelStatusUpdated", status: event.payload });
+  });
+}
+
+function initReadingStream() {
+  let buffer = "";
+  let flushHandle: number | null = null;
+
+  const flush = () => {
+    if (buffer.length > 0) {
+      appendReadingStream(buffer);
+      buffer = "";
+    }
+    flushHandle = null;
+  };
+
+  const scheduleFlush = () => {
+    if (flushHandle !== null) return;
+    flushHandle = window.setTimeout(flush, 33);
+  };
+
+  listen<StreamEvent>("reading:stream", (event) => {
+    if (event.payload.kind === "start") {
+      buffer = "";
+      resetReadingStream();
+      return;
+    }
+    if (event.payload.kind === "chunk") {
+      buffer += event.payload.chunk;
+      scheduleFlush();
+      return;
+    }
+    flush();
   });
 }
 
@@ -240,6 +279,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
   initModel();
   debugLog("log", "initModel:started");
+  initReadingStream();
+  debugLog("log", "initReadingStream:started");
 
   // Starfield is purely decorative. Never let it break core interactivity.
   // (WKWebView feature support varies by macOS version.)

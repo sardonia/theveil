@@ -143,20 +143,39 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     "#model-status .model-status__label"
   );
   const progress = document.querySelector<HTMLElement>("#model-progress");
+  const loadingShell = document.querySelector<HTMLElement>("#app-loading");
+  const loadingLabel = document.querySelector<HTMLElement>("#app-loading-status");
+  const loadingProgress = document.querySelector<HTMLElement>(
+    "#app-loading-progress"
+  );
   if (!label || !progress) return;
 
   if (status.status === "loading") {
     label.textContent = "Consulting the constellations…";
     progress.style.width = `${Math.round(status.progress * 100)}%`;
+    if (loadingLabel) loadingLabel.textContent = "Preparing the star map…";
+    if (loadingProgress) {
+      loadingProgress.style.width = `${Math.round(status.progress * 100)}%`;
+    }
+    loadingShell?.classList.remove("is-hidden");
   } else if (status.status === "ready") {
     label.textContent = "The stars are ready.";
     progress.style.width = "100%";
+    if (loadingLabel) loadingLabel.textContent = "The stars are ready.";
+    if (loadingProgress) loadingProgress.style.width = "100%";
+    loadingShell?.classList.add("is-hidden");
   } else if (status.status === "error") {
     label.textContent = "We will use a gentle offline reading.";
     progress.style.width = "100%";
+    if (loadingLabel) loadingLabel.textContent = "App failed to load.";
+    if (loadingProgress) loadingProgress.style.width = "100%";
+    loadingShell?.classList.remove("is-hidden");
   } else {
     label.textContent = "Preparing the star map…";
     progress.style.width = "0%";
+    if (loadingLabel) loadingLabel.textContent = "Preparing the star map…";
+    if (loadingProgress) loadingProgress.style.width = "0%";
+    loadingShell?.classList.remove("is-hidden");
   }
 }
 
@@ -211,6 +230,31 @@ export function renderBusy(isGenerating: boolean) {
   regenerate.disabled = isGenerating;
   edit.disabled = isGenerating;
   copy.disabled = isGenerating;
+}
+
+let streamTextNode: Text | null = null;
+
+function getStreamContainer() {
+  return document.querySelector<HTMLElement>("#reading-stream");
+}
+
+export function resetReadingStream() {
+  const container = getStreamContainer();
+  if (!container) return;
+  container.textContent = "";
+  streamTextNode = document.createTextNode("");
+  container.appendChild(streamTextNode);
+}
+
+export function appendReadingStream(chunk: string) {
+  const container = getStreamContainer();
+  if (!container) return;
+  if (!streamTextNode || streamTextNode.parentNode !== container) {
+    streamTextNode = document.createTextNode(container.textContent ?? "");
+    container.textContent = "";
+    container.appendChild(streamTextNode);
+  }
+  streamTextNode.data += chunk;
 }
 
 export function showToast(message: string) {
