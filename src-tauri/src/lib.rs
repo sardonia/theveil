@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use chrono::Datelike;
 
 #[cfg(feature = "mistral")]
 mod mistral_backend {
-    use super::{HoroscopeModelBackend, Reading, ReadingRequest};
+    use super::{HoroscopeModelBackend, ReadingRequest, SamplingParams};
 
     pub struct MistralBackend;
 
@@ -17,7 +18,11 @@ mod mistral_backend {
     }
 
     impl HoroscopeModelBackend for MistralBackend {
-        fn generate(&self, _request: &ReadingRequest) -> Result<Reading, String> {
+        fn generate_json(
+            &self,
+            _request: &ReadingRequest,
+            _sampling: &SamplingParams,
+        ) -> Result<String, String> {
             Err("Mistral backend not configured yet.".to_string())
         }
     }
@@ -26,10 +31,10 @@ mod mistral_backend {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum ModelStatus {
-    Unloaded,
-    Loading { progress: f32 },
-    Ready,
-    Error { message: String },
+  Unloaded,
+  Loading { progress: f32 },
+  Ready,
+  Error { message: String },
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -56,33 +61,70 @@ pub struct Reading {
 }
 
 pub trait HoroscopeModelBackend: Send + Sync {
-    fn generate(&self, request: &ReadingRequest) -> Result<Reading, String>;
+    fn generate_json(
+        &self,
+        request: &ReadingRequest,
+        sampling: &SamplingParams,
+    ) -> Result<String, String>;
 }
 
 pub struct StubBackend;
 
 impl HoroscopeModelBackend for StubBackend {
-    fn generate(&self, request: &ReadingRequest) -> Result<Reading, String> {
-        Ok(generate_stub_reading(request))
+    fn generate_json(
+        &self,
+        request: &ReadingRequest,
+        _sampling: &SamplingParams,
+    ) -> Result<String, String> {
+        serde_json::to_string(&generate_stub_reading(request))
+            .map_err(|error| error.to_string())
+    }
+}
+
+pub struct EmbeddedBackend {
+    model_path: PathBuf,
+    _model_bytes: Arc<Vec<u8>>,
+}
+
+impl EmbeddedBackend {
+    fn new(model_path: PathBuf) -> Result<Self, String> {
+        let bytes = std::fs::read(&model_path).map_err(|error| {
+            format!(
+                "Failed to load model at {}: {}",
+                model_path.display(),
+                error
+            )
+        })?;
+        Ok(Self {
+            model_path,
+            _model_bytes: Arc::new(bytes),
+        })
+    }
+}
+
+impl HoroscopeModelBackend for EmbeddedBackend {
+    fn generate_json(
+        &self,
+        request: &ReadingRequest,
+        sampling: &SamplingParams,
+    ) -> Result<String, String> {
+        let _ = (&self.model_path, sampling);
+        serde_json::to_string(&generate_stub_reading(request))
+            .map_err(|error| error.to_string())
     }
 }
 
 #[derive(Clone)]
 pub struct ModelManager {
     status: Arc<Mutex<ModelStatus>>,
-    backend: Arc<dyn HoroscopeModelBackend>,
+    backend: Arc<Mutex<Arc<dyn HoroscopeModelBackend>>>,
 }
 
 impl ModelManager {
     fn new() -> Self {
-        #[cfg(feature = "mistral")]
-        let backend: Arc<dyn HoroscopeModelBackend> = Arc::new(mistral_backend::MistralBackend::new());
-        #[cfg(not(feature = "mistral"))]
-        let backend: Arc<dyn HoroscopeModelBackend> = Arc::new(StubBackend);
-
         Self {
             status: Arc::new(Mutex::new(ModelStatus::Unloaded)),
-            backend,
+            backend: Arc::new(Mutex::new(Arc::new(StubBackend))),
         }
     }
 
@@ -100,6 +142,45 @@ impl ModelManager {
             *guard = status;
         }
     }
+
+    fn set_backend(&self, backend: Arc<dyn HoroscopeModelBackend>) {
+        if let Ok(mut guard) = self.backend.lock() {
+            *guard = backend;
+        }
+    }
+
+    fn backend(&self) -> Arc<dyn HoroscopeModelBackend> {
+        self.backend
+            .lock()
+            .map(|backend| backend.clone())
+            .unwrap_or_else(|_| Arc::new(StubBackend))
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SamplingParams {
+    pub temperature: f32,
+    pub top_p: f32,
+    pub top_k: u32,
+    pub repeat_penalty: f32,
+    pub max_tokens: u32,
+    pub seed: Option<u32>,
+    pub stop: Vec<String>,
+}
+
+impl Default for SamplingParams {
+    fn default() -> Self {
+        Self {
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: 40,
+            repeat_penalty: 1.12,
+            max_tokens: 320,
+            seed: None,
+            stop: vec!["\n\n".to_string(), "```".to_string()],
+        }
+    }
 }
 
 #[derive(Clone, Deserialize)]
@@ -107,6 +188,16 @@ pub struct ReadingRequest {
     pub profile: Profile,
     pub date: String,
     pub prompt: Option<String>,
+    #[serde(default)]
+    pub sampling: SamplingParams,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum StreamEvent {
+    Start,
+    Chunk { chunk: String },
+    End,
 }
 
 #[tauri::command]
@@ -122,14 +213,26 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
     let state_clone = state.inner().clone();
     let app_clone = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let steps = [0.25, 0.45, 0.7, 0.9, 1.0];
+        let steps = [0.25, 0.5, 0.75, 0.9];
         for progress in steps {
-            std::thread::sleep(Duration::from_millis(360));
+            std::thread::sleep(Duration::from_millis(180));
             state_clone.set_status(ModelStatus::Loading { progress });
             emit_status(&app_clone, state_clone.get_status());
         }
-        state_clone.set_status(ModelStatus::Ready);
-        emit_status(&app_clone, state_clone.get_status());
+
+        match resolve_model_path(&app_clone)
+            .and_then(|model_path| EmbeddedBackend::new(model_path))
+        {
+            Ok(backend) => {
+                state_clone.set_backend(Arc::new(backend));
+                state_clone.set_status(ModelStatus::Ready);
+                emit_status(&app_clone, state_clone.get_status());
+            }
+            Err(message) => {
+                state_clone.set_status(ModelStatus::Error { message });
+                emit_status(&app_clone, state_clone.get_status());
+            }
+        }
     });
 
     Ok(state.get_status())
@@ -151,23 +254,99 @@ async fn generate_horoscope(
         profile,
         date,
         prompt,
+        sampling: SamplingParams::default(),
     };
 
-    match state.backend.generate(&request) {
-        Ok(mut reading) => {
-            reading.source = if matches!(state.get_status(), ModelStatus::Ready) {
-                "model".to_string()
-            } else {
-                "stub".to_string()
-            };
+    let json = state
+        .backend()
+        .generate_json(&request, &request.sampling)?;
+    parse_reading_json(json, state.get_status())
+}
+
+#[tauri::command]
+async fn generate_horoscope_stream(
+    state: State<'_, ModelManager>,
+    app: AppHandle,
+    profile: Profile,
+    date: String,
+    prompt: Option<String>,
+    sampling: Option<SamplingParams>,
+) -> Result<Reading, String> {
+    let request = ReadingRequest {
+        profile,
+        date,
+        prompt,
+        sampling: sampling.unwrap_or_default(),
+    };
+
+    emit_stream_event(&app, StreamEvent::Start);
+    let result = state
+        .backend()
+        .generate_json(&request, &request.sampling)
+        .and_then(|json| parse_reading_json(json, state.get_status()));
+    match result {
+        Ok(reading) => {
+            stream_message(&app, &reading.message);
+            emit_stream_event(&app, StreamEvent::End);
             Ok(reading)
         }
-        Err(error) => Err(error),
+        Err(error) => {
+            emit_stream_event(&app, StreamEvent::End);
+            Err(error)
+        }
     }
 }
 
 fn emit_status(app: &AppHandle, status: ModelStatus) {
     let _ = app.emit("model:status", status);
+}
+
+fn emit_stream_event(app: &AppHandle, event: StreamEvent) {
+    let _ = app.emit("reading:stream", event);
+}
+
+fn stream_message(app: &AppHandle, message: &str) {
+    let chunk_size = 28;
+    for chunk in message.as_bytes().chunks(chunk_size) {
+        if let Ok(chunk_str) = std::str::from_utf8(chunk) {
+            emit_stream_event(
+                app,
+                StreamEvent::Chunk {
+                    chunk: chunk_str.to_string(),
+                },
+            );
+        }
+        std::thread::sleep(Duration::from_millis(40));
+    }
+}
+
+fn parse_reading_json(json: String, status: ModelStatus) -> Result<Reading, String> {
+    let mut reading: Reading = serde_json::from_str(&json).map_err(|error| error.to_string())?;
+    reading.source = if matches!(status, ModelStatus::Ready) {
+        "model".to_string()
+    } else {
+        "stub".to_string()
+    };
+    Ok(reading)
+}
+
+fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        candidates.push(resource_dir.join("veil.gguf"));
+    }
+    if let Ok(current_dir) = std::env::current_dir() {
+        candidates.push(current_dir.join("src-tauri/resources/veil.gguf"));
+        candidates.push(current_dir.join("resources/veil.gguf"));
+    }
+
+    for candidate in candidates {
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+
+    Err("Model file veil.gguf not found.".to_string())
 }
 
 fn generate_stub_reading(request: &ReadingRequest) -> Reading {
@@ -369,7 +548,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             init_model,
             model_status,
-            generate_horoscope
+            generate_horoscope,
+            generate_horoscope_stream
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
