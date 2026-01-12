@@ -78,9 +78,9 @@ export function initDebug() {
   if (!isDebugEnabled()) return;
 
   installOverlay();
-  // Show the overlay by default in debug mode so diagnostics are visible even
-  // if DevTools are hard to access (common in WKWebView-based apps).
-  setOverlayVisible(true);
+  // Keep the overlay hidden by default; it can be enabled via the UI toggle
+  // or keyboard shortcut when needed.
+  setOverlayVisible(false);
   installGlobalErrorHandlers();
   installGlobalPointerTracer();
 
