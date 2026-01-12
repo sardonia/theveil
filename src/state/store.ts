@@ -1,6 +1,7 @@
 import type { AppState } from "../domain/types";
 import type { DomainEvent } from "./events";
 import { reducer } from "./reducer";
+import { debugLog, isDebugEnabled } from "../debug/logger";
 
 export type Selector<T> = (state: AppState) => T;
 export type EqualityFn<T> = (a: T, b: T) => boolean;
@@ -22,12 +23,23 @@ export function createStore(initialState: AppState) {
   }
 
   function applyEvents(events: DomainEvent[]) {
+    const prevRoute = state.ui.route;
     let next = state;
     for (const event of events) {
       next = reducer(next, event);
     }
     const previous = state;
     state = next;
+
+    if (isDebugEnabled()) {
+      const nextRoute = state.ui.route;
+      debugLog("log", "store:applyEvents", {
+        events: events.map((e) => e.type),
+        prevRoute,
+        nextRoute,
+      });
+    }
+
     subscriptions.forEach((subscription) => {
       const nextSelected = subscription.selector(state);
       const prevSelected = subscription.lastValue;

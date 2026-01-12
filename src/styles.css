@@ -106,46 +106,52 @@ body {
   margin: 0 auto;
 }
 
-.flip-card {
+.card-shell {
   width: 680px;
   height: 640px;
-  filter: drop-shadow(0 30px 80px rgba(5, 7, 20, 0.5));
-}
-
-.flip-card__inner {
   position: relative;
-  width: 100%;
-  height: 100%;
-  transition: opacity 0.5s ease;
-  will-change: opacity;
+  /*
+    WKWebView has a history of odd hit-testing bugs around CSS filters.
+    `filter: drop-shadow(...)` can (on some macOS builds) cause nested
+    controls to stop receiving pointer events.
+
+    Use an equivalent box-shadow instead, which is far more reliable.
+  */
+  box-shadow: 0 30px 80px rgba(5, 7, 20, 0.5);
 }
 
-.flip-card__face {
+/*
+  We intentionally use a mount/active cross-fade instead of leaving two
+  overlapping "faces" around forever.
+
+  In some WKWebView builds, an element that is visually transparent (opacity: 0)
+  can still interfere with hit-testing even when pointer-events is supposed to
+  prevent it.
+
+  Our approach:
+  - default: display: none + pointer-events: none
+  - mounted: display: flex (so it can animate)
+  - active: opacity: 1 + pointer-events: auto
+  - after fade: unmount the old view back to display: none
+*/
+.view {
   position: absolute;
   inset: 0;
-  display: flex;
+  width: 100%;
+  height: 100%;
+  display: none;
+  opacity: 0;
+  pointer-events: none;
   transition: opacity 0.5s ease;
-}
-
-.flip-card__face--front {
-  z-index: 2;
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.flip-card__face--back {
-  z-index: 1;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.flip-card--flipped .flip-card__face--front {
-  opacity: 0;
-  pointer-events: none;
+  will-change: opacity;
   z-index: 1;
 }
 
-.flip-card--flipped .flip-card__face--back {
+.view.is-mounted {
+  display: flex;
+}
+
+.view.is-active {
   opacity: 1;
   pointer-events: auto;
   z-index: 2;
@@ -153,6 +159,12 @@ body {
 
 .glass-card {
   position: relative;
+  /*
+    WKWebView can sometimes mis-handle hit-testing when decorative layers
+    (glows/filters) overlap form controls. `isolation: isolate` creates a
+    new stacking context so our z-index rules are predictable.
+  */
+  isolation: isolate;
   background: linear-gradient(165deg, var(--surface), rgba(12, 14, 26, 0.88));
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 28px;
@@ -182,6 +194,16 @@ body {
   background: radial-gradient(circle, rgba(169, 135, 255, 0.35), transparent 70%);
   opacity: 0.8;
   pointer-events: none;
+  z-index: 0;
+}
+
+/*
+  Ensure interactive content always paints above the decorative glow layer.
+  This also hardens pointer hit-testing in WKWebView.
+*/
+.glass-card > *:not(.glass-card__glow) {
+  position: relative;
+  z-index: 1;
 }
 
 .glass-card h2 {
@@ -264,6 +286,19 @@ body {
 .secondary-button:hover,
 .ghost-button:hover {
   transform: translateY(-2px);
+}
+
+.primary-button:active,
+.secondary-button:active,
+.ghost-button:active {
+  transform: translateY(0px) scale(0.99);
+}
+
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.ghost-button:focus-visible {
+  outline: 3px solid rgba(169, 135, 255, 0.35);
+  outline-offset: 3px;
 }
 
 .button-shimmer {

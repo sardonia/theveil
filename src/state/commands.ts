@@ -3,6 +3,7 @@ import { profileSpec } from "../domain/specs";
 import { runReadingPipeline } from "../pipeline/readingPipeline";
 import type { DomainEvent } from "./events";
 import { AsyncQueue } from "./queue";
+import { debugLog, isDebugEnabled } from "../debug/logger";
 
 export type Command =
   | { type: "SubmitProfile"; profile: ProfileDraft }
@@ -24,6 +25,9 @@ export class CommandBus {
   constructor(private context: CommandContext) {}
 
   async execute(command: Command) {
+    if (isDebugEnabled()) {
+      debugLog("log", `command:execute:${command.type}`, command);
+    }
     switch (command.type) {
       case "SubmitProfile":
         return this.handleSubmitProfile(command.profile);
@@ -47,7 +51,9 @@ export class CommandBus {
   }
 
   private async handleSubmitProfile(profile: ProfileDraft) {
+    debugLog("log", "command:SubmitProfile:validate:start");
     const validation = profileSpec.validate(profile);
+    debugLog("log", "command:SubmitProfile:validate:result", validation);
     if (!validation.valid) {
       return this.context.applyEvents([
         { type: "ProfileValidationFailed", errors: validation.errors },
@@ -60,11 +66,19 @@ export class CommandBus {
       { type: "RouteChanged", route: "reading" },
     ]);
 
+    debugLog("log", "command:SubmitProfile:routeChanged", {
+      route: this.context.getState().ui.route,
+    });
+
     await this.execute({ type: "GenerateReading" });
   }
 
   private async handleGenerateReading() {
     const state = this.context.getState();
+    debugLog("log", "command:GenerateReading:start", {
+      hasProfile: Boolean(state.profile.saved),
+      route: state.ui.route,
+    });
     if (!state.profile.saved) {
       return this.context.applyEvents([
         {
@@ -76,6 +90,7 @@ export class CommandBus {
 
     const snapshotBefore = this.context.getState();
     this.queue.enqueue(async () => {
+      debugLog("log", "command:GenerateReading:queue:begin");
       this.context.applyEvents([{ type: "ReadingGenerationStarted" }]);
       try {
         const reading = await runReadingPipeline(
@@ -83,15 +98,25 @@ export class CommandBus {
           new Date().toISOString().slice(0, 10),
           this.context.getState()
         );
+        debugLog("log", "command:GenerateReading:pipeline:success", {
+          title: reading.title,
+          sign: reading.sign,
+          source: reading.source,
+        });
         this.pushUndo(snapshotBefore);
         this.context.applyEvents([
           { type: "ReadingGenerated", reading },
           { type: "RouteChanged", route: "reading" },
         ]);
+        debugLog("log", "command:GenerateReading:routeChanged", {
+          route: this.context.getState().ui.route,
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : "The stars were quiet.";
+        debugLog("error", "command:GenerateReading:pipeline:error", error);
         this.context.applyEvents([{ type: "ReadingGenerationFailed", error: message }]);
       }
+      debugLog("log", "command:GenerateReading:queue:end");
     });
   }
 

@@ -16,6 +16,7 @@ import {
   showToast,
 } from "./ui/dom";
 import { initStarfield } from "./ui/starfield";
+import { debugLog, initDebug, isDebugEnabled } from "./debug/logger";
 
 const store = createStore(loadSnapshot());
 const commandBus = new CommandBus({
@@ -40,8 +41,12 @@ function bindForm() {
   const form = document.querySelector<HTMLFormElement>("#profile-form");
   if (!form) return;
 
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
+  // We use our own Specification validation. Disable native HTML validation so
+  // WKWebView/Safari quirks (especially around <input type="date">) cannot
+  // block the submit event and make the button appear "dead".
+  form.noValidate = true;
+
+  const handleReveal = () => {
     const formData = new FormData(form);
     const profile: ProfileDraft = {
       name: String(formData.get("name") ?? "").trim(),
@@ -49,7 +54,61 @@ function bindForm() {
       mood: String(formData.get("mood") ?? DEFAULT_PROFILE.mood),
       personality: String(formData.get("personality") ?? DEFAULT_PROFILE.personality),
     };
-    commandBus.execute({ type: "SubmitProfile", profile });
+    debugLog("log", "reveal:handle", profile);
+    void commandBus.execute({ type: "SubmitProfile", profile }).catch((error) => {
+      debugLog("error", "command:SubmitProfile failed", error);
+    });
+  };
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleReveal();
+  });
+
+  // Handle the primary button click explicitly as a safety net.
+  const revealButton = form.querySelector<HTMLButtonElement>("#reveal-reading");
+  if (revealButton && isDebugEnabled()) {
+    const rect = revealButton.getBoundingClientRect();
+    const style = window.getComputedStyle(revealButton);
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const fromPoint = document.elementFromPoint(cx, cy) as HTMLElement | null;
+    const fromPointStyle = fromPoint ? window.getComputedStyle(fromPoint) : null;
+    debugLog("log", "revealButton:bound", {
+      disabled: revealButton.disabled,
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      pointerEvents: style.pointerEvents,
+      zIndex: style.zIndex,
+      display: style.display,
+      opacity: style.opacity,
+      hitTestCenter: { x: cx, y: cy },
+      hitTestElementFromPoint: fromPoint ? {
+        tag: fromPoint.tagName,
+        id: fromPoint.id || null,
+        className: typeof fromPoint.className === "string" ? fromPoint.className : null,
+        pointerEvents: fromPointStyle?.pointerEvents,
+        zIndex: fromPointStyle?.zIndex,
+        display: fromPointStyle?.display,
+        opacity: fromPointStyle?.opacity,
+      } : null,
+    });
+
+    revealButton.addEventListener(
+      "pointerdown",
+      (event) => {
+        const e = event as PointerEvent;
+        debugLog("log", "revealButton:pointerdown", {
+          x: e.clientX,
+          y: e.clientY,
+          button: e.button,
+        });
+      },
+      true
+    );
+  }
+  revealButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    handleReveal();
   });
 }
 
@@ -113,18 +172,48 @@ store.subscribe(
 );
 
 window.addEventListener("DOMContentLoaded", () => {
-  populateSelects();
-  bindForm();
-  bindActions();
-  renderInitial(store.getState());
-  initModel();
+  initDebug();
+  debugLog("log", "DOMContentLoaded");
 
-  // Starfield is a purely decorative enhancement. If it fails to initialize
-  // (e.g., older WKWebView builds on macOS missing APIs like ResizeObserver),
-  // the rest of the app must still be interactive.
+  // Helpful startup diagnostics (especially for WKWebView issues).
+  debugLog("log", "UserAgent", navigator.userAgent);
+
+  populateSelects();
+  debugLog("log", "populateSelects:done", {
+    moodOptions: document.querySelectorAll("#mood-input option").length,
+    personalityOptions: document.querySelectorAll("#personality-input option").length,
+  });
+
+  bindForm();
+  debugLog("log", "bindForm:done", {
+    hasForm: Boolean(document.querySelector("#profile-form")),
+    hasRevealButton: Boolean(document.querySelector("#reveal-reading")),
+  });
+
+  bindActions();
+  debugLog("log", "bindActions:done", {
+    hasRegenerate: Boolean(document.querySelector("#regenerate")),
+    hasEdit: Boolean(document.querySelector("#edit-profile")),
+    hasCopy: Boolean(document.querySelector("#copy-reading")),
+  });
+
+  renderInitial(store.getState());
+  debugLog("log", "renderInitial:done", {
+    route: store.getState().ui.route,
+  });
+
+  initModel();
+  debugLog("log", "initModel:started");
+
+  // Starfield is purely decorative. Never let it break core interactivity.
+  // (WKWebView feature support varies by macOS version.)
   try {
     initStarfield();
+    if (isDebugEnabled()) {
+      debugLog("log", "initStarfield:done");
+    }
   } catch (error) {
     console.warn("Starfield failed to initialize; continuing without it.", error);
+    debugLog("warn", "initStarfield:failed", error);
   }
 });

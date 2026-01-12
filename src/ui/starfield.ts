@@ -14,7 +14,7 @@ export function initStarfield() {
   let resizeFrame: number | null = null;
   let pendingWidth = 0;
   let pendingHeight = 0;
-  let resizeTimeout: number | null = null;  // or NodeJS.Timeout | number | null if you need both
+  let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
   let isResizing = false;
   let lastResizeAt = 0;
 
@@ -89,22 +89,19 @@ export function initStarfield() {
     }));
   };
 
-const handleResize = () => {
-  isResizing = true;
-  lastResizeAt = performance.now();
-
-  if (resizeTimeout !== null) {
-    window.clearTimeout(resizeTimeout);
-  }
-
-  resizeTimeout = window.setTimeout(() => {
-    isResizing = false;
-  }, 280);
-
-  readCanvasSize();
-  updateCanvasSize();
-  updateStarCount();
-};
+  const handleResize = () => {
+    isResizing = true;
+    lastResizeAt = performance.now();
+    if (resizeTimeout) {
+      window.clearTimeout(resizeTimeout);
+    }
+    resizeTimeout = window.setTimeout(() => {
+      isResizing = false;
+    }, 280);
+    readCanvasSize();
+    updateCanvasSize();
+    updateStarCount();
+  };
 
   const render = () => {
     ctx.clearRect(0, 0, width, height);
@@ -134,13 +131,14 @@ const handleResize = () => {
   updateStarCount();
   render();
 
-  // NOTE: Tauri on macOS uses WKWebView, whose feature set depends on the
-  // user's OS/WebKit version. Some older versions do not implement
-  // ResizeObserver, which would throw a ReferenceError and stop the rest of
-  // the app from initializing.
+  // Tauri on macOS uses WKWebView, whose available Web APIs depend on the
+  // installed macOS / WebKit version. Some builds do not provide ResizeObserver.
+  // If we reference it unguarded, it throws a ReferenceError and can break the
+  // entire application initialization (which makes the "Reveal my reading"
+  // button appear to do nothing).
   //
-  // We use ResizeObserver when available (best behavior), and fall back to a
-  // window 'resize' listener otherwise.
+  // Prefer ResizeObserver when available (best behavior), otherwise fall back to
+  // a window resize listener.
   if (typeof ResizeObserver !== "undefined") {
     const resizeObserver = new ResizeObserver(() => {
       readCanvasSize();
