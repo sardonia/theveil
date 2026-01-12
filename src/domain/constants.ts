@@ -54,3 +54,13 @@ export const DEFAULT_PROFILE = {
   mood: MOODS[0],
   personality: PERSONALITIES[0],
 };
+
+export const DEFAULT_SAMPLING_PARAMS = {
+  temperature: 0.7,
+  topP: 0.9,
+  topK: 40,
+  repeatPenalty: 1.12,
+  maxTokens: 320,
+  seed: null,
+  stop: ["\n\n", "```"],
+};

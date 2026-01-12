@@ -14,7 +14,7 @@ export function initStarfield() {
   let resizeFrame: number | null = null;
   let pendingWidth = 0;
   let pendingHeight = 0;
-  let resizeTimeout: ReturnType<typeof window.setTimeout> | null = null;
+  let resizeTimeout: number | null = null;
   let isResizing = false;
   let lastResizeAt = 0;
 
