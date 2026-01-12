@@ -4,6 +4,24 @@ import { zodiacSign } from "../domain/zodiac";
 import { debugLog, isDebugEnabled } from "../debug/logger";
 
 let routeTransitionToken = 0;
+const MIN_LOADING_MS = 1200;
+let loadingShownAt: number | null = null;
+let loadingHideTimeout: number | null = null;
+
+function scheduleLoadingHide(loadingShell: HTMLElement) {
+  if (loadingHideTimeout !== null) {
+    window.clearTimeout(loadingHideTimeout);
+  }
+  const elapsed = loadingShownAt ? Date.now() - loadingShownAt : MIN_LOADING_MS;
+  const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+  if (remaining === 0) {
+    loadingShell.classList.add("is-hidden");
+    return;
+  }
+  loadingHideTimeout = window.setTimeout(() => {
+    loadingShell.classList.add("is-hidden");
+  }, remaining);
+}
 
 export function populateSelects() {
   const moodSelect = document.querySelector<HTMLSelectElement>("#mood-input");
@@ -143,20 +161,65 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     "#model-status .model-status__label"
   );
   const progress = document.querySelector<HTMLElement>("#model-progress");
+  const loadingShell = document.querySelector<HTMLElement>("#app-loading");
+  const loadingLabel = document.querySelector<HTMLElement>("#app-loading-status");
+  const loadingProgress = document.querySelector<HTMLElement>(
+    "#app-loading-progress"
+  );
   if (!label || !progress) return;
 
   if (status.status === "loading") {
     label.textContent = "Consulting the constellations…";
     progress.style.width = `${Math.round(status.progress * 100)}%`;
+    if (loadingLabel) loadingLabel.textContent = "Preparing the star map…";
+    if (loadingProgress) {
+      loadingProgress.style.width = `${Math.round(status.progress * 100)}%`;
+    }
+    if (loadingShell) {
+      loadingShell.classList.remove("is-hidden");
+      if (!loadingShownAt) {
+        loadingShownAt = Date.now();
+      }
+      if (loadingHideTimeout !== null) {
+        window.clearTimeout(loadingHideTimeout);
+        loadingHideTimeout = null;
+      }
+    }
   } else if (status.status === "ready") {
-    label.textContent = "The stars are ready.";
+    const sizeLabel = Number.isFinite(status.modelSizeMb)
+      ? ` (${status.modelSizeMb.toFixed(1)} MB)`
+      : "";
+    label.textContent = `Model loaded${sizeLabel}.`;
     progress.style.width = "100%";
+    if (loadingLabel) loadingLabel.textContent = "The stars are ready.";
+    if (loadingProgress) loadingProgress.style.width = "100%";
+    if (loadingShell) {
+      scheduleLoadingHide(loadingShell);
+    }
   } else if (status.status === "error") {
     label.textContent = "We will use a gentle offline reading.";
     progress.style.width = "100%";
+    if (loadingLabel) loadingLabel.textContent = "App failed to load.";
+    if (loadingProgress) loadingProgress.style.width = "100%";
+    if (loadingShell) {
+      loadingShell.classList.remove("is-hidden");
+      loadingShownAt = null;
+    }
   } else {
     label.textContent = "Preparing the star map…";
     progress.style.width = "0%";
+    if (loadingLabel) loadingLabel.textContent = "Preparing the star map…";
+    if (loadingProgress) loadingProgress.style.width = "0%";
+    if (loadingShell) {
+      loadingShell.classList.remove("is-hidden");
+      if (!loadingShownAt) {
+        loadingShownAt = Date.now();
+      }
+      if (loadingHideTimeout !== null) {
+        window.clearTimeout(loadingHideTimeout);
+        loadingHideTimeout = null;
+      }
+    }
   }
 }
 
@@ -211,6 +274,43 @@ export function renderBusy(isGenerating: boolean) {
   regenerate.disabled = isGenerating;
   edit.disabled = isGenerating;
   copy.disabled = isGenerating;
+}
+
+const streamTargets = new Map<HTMLElement, Text>();
+
+function getStreamTargets() {
+  const targets: HTMLElement[] = [];
+  const loadingStream = document.querySelector<HTMLElement>("#reading-stream");
+  const messageStream = document.querySelector<HTMLElement>(".reading__message");
+  if (loadingStream) targets.push(loadingStream);
+  if (messageStream) targets.push(messageStream);
+  return targets;
+}
+
+export function resetReadingStream() {
+  const targets = getStreamTargets();
+  if (targets.length === 0) return;
+  targets.forEach((target) => {
+    target.textContent = "";
+    const node = document.createTextNode("");
+    target.appendChild(node);
+    streamTargets.set(target, node);
+  });
+}
+
+export function appendReadingStream(chunk: string) {
+  const targets = getStreamTargets();
+  if (targets.length === 0) return;
+  targets.forEach((target) => {
+    let node = streamTargets.get(target);
+    if (!node || node.parentNode !== target) {
+      node = document.createTextNode(target.textContent ?? "");
+      target.textContent = "";
+      target.appendChild(node);
+      streamTargets.set(target, node);
+    }
+    node.data += chunk;
+  });
 }
 
 export function showToast(message: string) {

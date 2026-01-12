@@ -2,6 +2,7 @@ import type { ModelStatus, ProfileDraft, Reading } from "../domain/types";
 import type { HoroscopeAdapter } from "../adapters/modelAdapter";
 import { EmbeddedModelAdapter } from "../adapters/modelAdapter";
 import { StubAdapter } from "../adapters/stubAdapter";
+import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
 
 export class HoroscopeRepository {
   private embeddedAdapter: HoroscopeAdapter;
@@ -20,7 +21,12 @@ export class HoroscopeRepository {
   ): Promise<Reading> {
     if (status.status === "ready") {
       try {
-        return await this.embeddedAdapter.generate(profile, date, prompt);
+        return await this.embeddedAdapter.generate(
+          profile,
+          date,
+          prompt,
+          DEFAULT_SAMPLING_PARAMS
+        );
       } catch {
         return this.stubAdapter.generate(profile, date);
       }
