@@ -24,10 +24,16 @@ function scheduleLoadingHide(loadingShell: HTMLElement) {
   );
   if (remaining === 0) {
     loadingShell.classList.add("is-hidden");
+    loadingHideTimeout = null;
+    loadingShownAt = null;
+    loadingDismissed = true;
+  };
+  if (remaining === 0) {
+    hideOverlay();
     return;
   }
   loadingHideTimeout = window.setTimeout(() => {
-    loadingShell.classList.add("is-hidden");
+    hideOverlay();
   }, remaining);
 }
 
@@ -185,6 +191,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     }
     if (loadingShell) {
       loadingShell.classList.remove("is-hidden");
+      loadingDismissed = false;
       if (!loadingShownAt) {
         loadingShownAt = Date.now();
       }
@@ -226,7 +233,12 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     if (loadingProgress) loadingProgress.style.width = "100%";
     if (loadingShell) {
       loadingShell.classList.remove("is-hidden");
+      loadingDismissed = false;
       loadingShownAt = null;
+      if (loadingHideTimeout !== null) {
+        window.clearTimeout(loadingHideTimeout);
+        loadingHideTimeout = null;
+      }
     }
     loadedShownAt = null;
   } else {
@@ -234,7 +246,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     progress.style.width = "0%";
     if (loadingLabel) loadingLabel.textContent = "Preparing the star map…";
     if (loadingProgress) loadingProgress.style.width = "0%";
-    if (loadingShell) {
+    if (loadingShell && !loadingDismissed) {
       loadingShell.classList.remove("is-hidden");
       if (!loadingShownAt) {
         loadingShownAt = Date.now();
