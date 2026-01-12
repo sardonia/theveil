@@ -83,11 +83,22 @@ impl HoroscopeModelBackend for StubBackend {
 
 pub struct EmbeddedBackend {
     model_path: PathBuf,
+    _model_bytes: Arc<Vec<u8>>,
 }
 
 impl EmbeddedBackend {
-    fn new(model_path: PathBuf) -> Self {
-        Self { model_path }
+    fn new(model_path: PathBuf) -> Result<Self, String> {
+        let bytes = std::fs::read(&model_path).map_err(|error| {
+            format!(
+                "Failed to load model at {}: {}",
+                model_path.display(),
+                error
+            )
+        })?;
+        Ok(Self {
+            model_path,
+            _model_bytes: Arc::new(bytes),
+        })
     }
 }
 
@@ -209,9 +220,11 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
             emit_status(&app_clone, state_clone.get_status());
         }
 
-        match resolve_model_path(&app_clone) {
-            Ok(model_path) => {
-                state_clone.set_backend(Arc::new(EmbeddedBackend::new(model_path)));
+        match resolve_model_path(&app_clone)
+            .and_then(|model_path| EmbeddedBackend::new(model_path))
+        {
+            Ok(backend) => {
+                state_clone.set_backend(Arc::new(backend));
                 state_clone.set_status(ModelStatus::Ready);
                 emit_status(&app_clone, state_clone.get_status());
             }
