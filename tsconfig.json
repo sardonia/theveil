@@ -1,23 +1,45 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "module": "ESNext",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "skipLibCheck": true,
+    "target": "ES2022",                      // Output JS that uses ES2022 features (class fields, top-level await, .at(), etc.)
+                                             // → Very safe in 2026 for all modern browsers (Chrome/Edge/Firefox/Safari ~last 4 years)
 
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
+    "useDefineForClassFields": true,         // Use the modern JS class fields behavior (initialized in constructor)
+                                             // → Matches current JavaScript spec, recommended since ~2022
 
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "module": "ESNext",                      // Use the latest ECMAScript module syntax (import/export)
+                                             // → Perfect match when using modern bundlers (Vite, esbuild, Rollup)
+
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],// Include type definitions for:
+                                             //   - ES2022 JavaScript features
+                                             //   - Browser DOM APIs
+                                             //   - Iterable helpers (e.g. for...of on DOM collections)
+                                             // Changed from ES2020 → better typings for newer JS methods
+
+    "skipLibCheck": true,                    // Skip type checking of all declaration files (*.d.ts)
+                                             // → Speeds up compilation a lot, safe in most modern projects
+
+    /* Bundler mode – strongly recommended for Vite / esbuild / Parcel */
+    "moduleResolution": "bundler",           // Modern resolution algorithm used by Vite/esbuild
+                                             // → Supports package.json "exports", cleaner imports, no node_modules noise
+
+    "allowImportingTsExtensions": true,      // Allow imports like import './foo.ts' (without stripping .ts)
+                                             // → Required by Vite/esbuild when they handle TypeScript themselves
+
+    "resolveJsonModule": true,               // Allow importing JSON files as modules (import data from './data.json')
+                                             // → Very useful for config, mock data, etc.
+
+    "isolatedModules": true,                 // Tell TS each file can be transpiled in isolation
+                                             // → Required by most fast bundlers (Vite, esbuild, swc, Babel)
+
+    "noEmit": true,                          // Don't generate .js files – let the bundler do it
+                                             // → Standard for Vite / Next.js / most frontend setups
+
+    /* Linting – strict mode is excellent for catching bugs early */
+    "strict": true,                          // Enable all strict type-checking options (highly recommended)
+    "noUnusedLocals": true,                  // Error on unused local variables
+    "noUnusedParameters": true,              // Error on unused function parameters
+    "noFallthroughCasesInSwitch": true       // Require break/return in every switch case
   },
-  "include": ["src"]
+
+  "include": ["src"]                         // Only process files inside src/ folder
 }
