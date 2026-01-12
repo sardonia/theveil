@@ -14,9 +14,16 @@ import {
   renderRoute,
   renderValidationErrors,
   showToast,
+  updateBirthdateInputState,
 } from "./ui/dom";
 import { initStarfield } from "./ui/starfield";
-import { debugLog, initDebug, isDebugEnabled } from "./debug/logger";
+import {
+  debugLog,
+  initDebug,
+  isDebugEnabled,
+  isDebugOverlayVisible,
+  setDebugEnabled,
+} from "./debug/logger";
 
 const store = createStore(loadSnapshot());
 const commandBus = new CommandBus({
@@ -110,6 +117,14 @@ function bindForm() {
     event.preventDefault();
     handleReveal();
   });
+
+  const birthInput = form.querySelector<HTMLInputElement>("#birthdate-input");
+  if (birthInput) {
+    const syncBirthdate = () => updateBirthdateInputState(birthInput);
+    syncBirthdate();
+    birthInput.addEventListener("input", syncBirthdate);
+    birthInput.addEventListener("change", syncBirthdate);
+  }
 }
 
 function bindActions() {
@@ -131,6 +146,25 @@ function bindActions() {
     } catch {
       showToast("Unable to copy right now.");
     }
+  });
+}
+
+function bindDebugToggle() {
+  const toggle = document.querySelector<HTMLButtonElement>("#debug-toggle");
+  if (!toggle) return;
+
+  const syncState = () => {
+    const isOn = isDebugOverlayVisible();
+    toggle.classList.toggle("is-on", isOn);
+    toggle.setAttribute("aria-pressed", String(isOn));
+  };
+
+  syncState();
+
+  toggle.addEventListener("click", () => {
+    const nextState = !isDebugOverlayVisible();
+    setDebugEnabled(nextState);
+    syncState();
   });
 }
 
@@ -189,6 +223,8 @@ window.addEventListener("DOMContentLoaded", () => {
     hasForm: Boolean(document.querySelector("#profile-form")),
     hasRevealButton: Boolean(document.querySelector("#reveal-reading")),
   });
+
+  bindDebugToggle();
 
   bindActions();
   debugLog("log", "bindActions:done", {

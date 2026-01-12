@@ -49,6 +49,29 @@ export function isDebugEnabled(): boolean {
   return isDev || fromStorage;
 }
 
+export function isDebugOverlayVisible(): boolean {
+  return overlayVisible;
+}
+
+export function setDebugEnabled(enabled: boolean) {
+  try {
+    if (enabled) {
+      localStorage.setItem("VEIL_DEBUG", "1");
+    } else {
+      localStorage.removeItem("VEIL_DEBUG");
+    }
+  } catch {
+    // ignore storage failures
+  }
+
+  if (enabled) {
+    initDebug();
+    setOverlayVisible(true);
+  } else {
+    setOverlayVisible(false);
+  }
+}
+
 export function initDebug() {
   if (installed) return;
   installed = true;
