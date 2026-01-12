@@ -124,14 +124,12 @@ body {
   position: absolute;
   inset: 0;
   display: flex;
-  pointer-events: none;
   transition: opacity 0.5s ease;
   opacity: 0;
   visibility: hidden;
 }
 
 .flip-card__face--front {
-  pointer-events: auto;
   z-index: 2;
   opacity: 1;
   visibility: visible;
@@ -142,13 +140,11 @@ body {
 }
 
 .flip-card--flipped .flip-card__face--front {
-  pointer-events: none;
   z-index: 1;
   visibility: hidden;
 }
 
 .flip-card--flipped .flip-card__face--back {
-  pointer-events: auto;
   z-index: 2;
   opacity: 1;
   visibility: visible;
