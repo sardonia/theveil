@@ -126,33 +126,24 @@ body {
   display: flex;
   transition: opacity 0.5s ease;
   opacity: 0;
-  visibility: hidden;
+  pointer-events: none;
 }
 
 .flip-card__face--front {
   z-index: 2;
-  opacity: 1;
-  visibility: visible;
 }
 
 .flip-card__face--back {
   z-index: 1;
 }
 
-.flip-card--flipped .flip-card__face--front {
-  z-index: 1;
-  visibility: hidden;
-}
-
-.flip-card--flipped .flip-card__face--back {
-  z-index: 2;
+.flip-card__face[aria-hidden="false"] {
   opacity: 1;
-  visibility: visible;
+  pointer-events: auto;
 }
 
 .flip-card--flipped .flip-card__face--front {
   opacity: 0;
-  visibility: hidden;
 }
 
 .glass-card {
