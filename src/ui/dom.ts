@@ -7,6 +7,7 @@ let routeTransitionToken = 0;
 const MIN_LOADING_MS = 1200;
 let loadingShownAt: number | null = null;
 let loadingHideTimeout: number | null = null;
+let loadingDismissed = false;
 
 function scheduleLoadingHide(loadingShell: HTMLElement) {
   if (loadingHideTimeout !== null) {
@@ -14,12 +15,18 @@ function scheduleLoadingHide(loadingShell: HTMLElement) {
   }
   const elapsed = loadingShownAt ? Date.now() - loadingShownAt : MIN_LOADING_MS;
   const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
-  if (remaining === 0) {
+  const hideOverlay = () => {
     loadingShell.classList.add("is-hidden");
+    loadingHideTimeout = null;
+    loadingShownAt = null;
+    loadingDismissed = true;
+  };
+  if (remaining === 0) {
+    hideOverlay();
     return;
   }
   loadingHideTimeout = window.setTimeout(() => {
-    loadingShell.classList.add("is-hidden");
+    hideOverlay();
   }, remaining);
 }
 
@@ -177,6 +184,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     }
     if (loadingShell) {
       loadingShell.classList.remove("is-hidden");
+      loadingDismissed = false;
       if (!loadingShownAt) {
         loadingShownAt = Date.now();
       }
@@ -203,14 +211,19 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     if (loadingProgress) loadingProgress.style.width = "100%";
     if (loadingShell) {
       loadingShell.classList.remove("is-hidden");
+      loadingDismissed = false;
       loadingShownAt = null;
+      if (loadingHideTimeout !== null) {
+        window.clearTimeout(loadingHideTimeout);
+        loadingHideTimeout = null;
+      }
     }
   } else {
     label.textContent = "Preparing the star map…";
     progress.style.width = "0%";
     if (loadingLabel) loadingLabel.textContent = "Preparing the star map…";
     if (loadingProgress) loadingProgress.style.width = "0%";
-    if (loadingShell) {
+    if (loadingShell && !loadingDismissed) {
       loadingShell.classList.remove("is-hidden");
       if (!loadingShownAt) {
         loadingShownAt = Date.now();
