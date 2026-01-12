@@ -179,7 +179,7 @@ impl ModelManager {
     }
 
     fn select_backend(&self) -> (Arc<dyn HoroscopeModelBackend>, ReadingSource) {
-        if matches!(self.get_status(), ModelStatus::Ready { .. }) {
+        if matches!(self.get_status(), ModelStatus::Loaded { .. }) {
             if let Ok(backend) = self.backend.lock() {
                 return (backend.clone(), ReadingSource::Model);
             }
