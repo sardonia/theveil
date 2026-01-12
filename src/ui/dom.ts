@@ -5,21 +5,35 @@ import { debugLog, isDebugEnabled } from "../debug/logger";
 
 let routeTransitionToken = 0;
 const MIN_LOADING_MS = 1200;
+const MIN_LOADED_MS = 1600;
 let loadingShownAt: number | null = null;
 let loadingHideTimeout: number | null = null;
+let loadedShownAt: number | null = null;
+let lastLoadedKey: string | null = null;
 
 function scheduleLoadingHide(loadingShell: HTMLElement) {
   if (loadingHideTimeout !== null) {
     window.clearTimeout(loadingHideTimeout);
   }
   const elapsed = loadingShownAt ? Date.now() - loadingShownAt : MIN_LOADING_MS;
-  const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+  const elapsedLoaded = loadedShownAt ? Date.now() - loadedShownAt : MIN_LOADED_MS;
+  const remaining = Math.max(
+    0,
+    MIN_LOADING_MS - elapsed,
+    MIN_LOADED_MS - elapsedLoaded
+  );
   if (remaining === 0) {
     loadingShell.classList.add("is-hidden");
+    loadingHideTimeout = null;
+    loadingShownAt = null;
+    loadingDismissed = true;
+  };
+  if (remaining === 0) {
+    hideOverlay();
     return;
   }
   loadingHideTimeout = window.setTimeout(() => {
-    loadingShell.classList.add("is-hidden");
+    hideOverlay();
   }, remaining);
 }
 
@@ -177,6 +191,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     }
     if (loadingShell) {
       loadingShell.classList.remove("is-hidden");
+      loadingDismissed = false;
       if (!loadingShownAt) {
         loadingShownAt = Date.now();
       }
@@ -185,16 +200,31 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
         loadingHideTimeout = null;
       }
     }
-  } else if (status.status === "ready") {
+    loadedShownAt = null;
+  } else if (status.status === "loaded") {
     const sizeLabel = Number.isFinite(status.modelSizeMb)
       ? ` (${status.modelSizeMb.toFixed(1)} MB)`
       : "";
-    label.textContent = `Model loaded${sizeLabel}.`;
+    label.textContent = `Model loaded: ${status.modelPath}${sizeLabel}.`;
     progress.style.width = "100%";
     if (loadingLabel) loadingLabel.textContent = "The stars are ready.";
     if (loadingProgress) loadingProgress.style.width = "100%";
     if (loadingShell) {
+      if (!loadedShownAt) {
+        loadedShownAt = Date.now();
+      }
       scheduleLoadingHide(loadingShell);
+    }
+    const loadedKey = `${status.modelPath}|${status.modelSizeBytes}`;
+    if (isDebugEnabled() && loadedKey !== lastLoadedKey) {
+      lastLoadedKey = loadedKey;
+      debugLog("log", "model:loaded", {
+        path: status.modelPath,
+        sizeBytes: status.modelSizeBytes,
+        sizeMb: Number.isFinite(status.modelSizeMb)
+          ? Number(status.modelSizeMb.toFixed(3))
+          : status.modelSizeMb,
+      });
     }
   } else if (status.status === "error") {
     label.textContent = "We will use a gentle offline reading.";
@@ -203,14 +233,20 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     if (loadingProgress) loadingProgress.style.width = "100%";
     if (loadingShell) {
       loadingShell.classList.remove("is-hidden");
+      loadingDismissed = false;
       loadingShownAt = null;
+      if (loadingHideTimeout !== null) {
+        window.clearTimeout(loadingHideTimeout);
+        loadingHideTimeout = null;
+      }
     }
+    loadedShownAt = null;
   } else {
     label.textContent = "Preparing the star map…";
     progress.style.width = "0%";
     if (loadingLabel) loadingLabel.textContent = "Preparing the star map…";
     if (loadingProgress) loadingProgress.style.width = "0%";
-    if (loadingShell) {
+    if (loadingShell && !loadingDismissed) {
       loadingShell.classList.remove("is-hidden");
       if (!loadingShownAt) {
         loadingShownAt = Date.now();
@@ -220,6 +256,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
         loadingHideTimeout = null;
       }
     }
+    loadedShownAt = null;
   }
 }
 

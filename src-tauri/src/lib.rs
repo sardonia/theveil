@@ -33,7 +33,14 @@ mod mistral_backend {
 pub enum ModelStatus {
     Unloaded,
     Loading { progress: f32 },
-    Ready { model_size_mb: f32 },
+    Loaded {
+        #[serde(rename = "modelPath")]
+        model_path: String,
+        #[serde(rename = "modelSizeMb")]
+        model_size_mb: f32,
+        #[serde(rename = "modelSizeBytes")]
+        model_size_bytes: u64,
+    },
     Error { message: String },
 }
 
@@ -103,12 +110,19 @@ pub struct EmbeddedBackend {
 
 impl EmbeddedBackend {
     fn new(model_path: PathBuf) -> Result<Self, String> {
-        let bytes = std::fs::read(&model_path).map_err(|error| {
-            format!(
+        let bytes = std::fs::read(&model_path).map_err(|error| match error.kind() {
+            std::io::ErrorKind::NotFound => {
+                format!("Model file {} is missing.", model_path.display())
+            }
+            std::io::ErrorKind::PermissionDenied => format!(
+                "Model file {} is not readable (permission denied).",
+                model_path.display()
+            ),
+            _ => format!(
                 "Failed to load model at {}: {}",
                 model_path.display(),
                 error
-            )
+            ),
         })?;
         Ok(Self {
             model_path,
@@ -220,7 +234,10 @@ pub enum StreamEvent {
 #[tauri::command]
 async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<ModelStatus, String> {
     let status = state.get_status();
-    if matches!(status, ModelStatus::Loading { .. } | ModelStatus::Ready { .. }) {
+    if matches!(
+        status,
+        ModelStatus::Loading { .. } | ModelStatus::Loaded { .. }
+    ) {
         return Ok(status);
     }
 
@@ -241,10 +258,15 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
             .and_then(|model_path| EmbeddedBackend::new(model_path))
         {
             Ok(backend) => {
-                let model_size_mb =
-                    (backend._model_bytes.len() as f32) / (1024.0 * 1024.0);
+                let model_size_bytes = backend._model_bytes.len() as u64;
+                let model_size_mb = (model_size_bytes as f32) / (1024.0 * 1024.0);
+                let model_path = backend.model_path.display().to_string();
                 state_clone.set_backend(Arc::new(backend));
-                state_clone.set_status(ModelStatus::Ready { model_size_mb });
+                state_clone.set_status(ModelStatus::Loaded {
+                    model_path,
+                    model_size_mb,
+                    model_size_bytes,
+                });
                 emit_status(&app_clone, state_clone.get_status());
             }
             Err(message) => {
@@ -374,13 +396,27 @@ fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
         candidates.push(current_dir.join("resources/veil.gguf"));
     }
 
-    for candidate in candidates {
+    for candidate in &candidates {
         if candidate.exists() {
-            return Ok(candidate);
+            if candidate.is_file() {
+                return Ok(candidate.clone());
+            }
+            return Err(format!(
+                "Model path {} exists but is not a file.",
+                candidate.display()
+            ));
         }
     }
 
-    Err("Model file veil.gguf not found.".to_string())
+    let searched = candidates
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(format!(
+        "Model file veil.gguf not found. Looked in: {}.",
+        searched
+    ))
 }
 
 fn generate_stub_reading(request: &ReadingRequest) -> Reading {
