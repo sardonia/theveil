@@ -59,6 +59,7 @@ body {
   max-width: 720px;
   width: min(720px, 94vw);
   margin: 0 auto;
+  position: relative;
 }
 
 .app__eyebrow {
@@ -82,6 +83,45 @@ body {
   color: var(--text-muted);
   max-width: 520px;
   font-size: 1.05rem;
+}
+
+.debug-toggle {
+  position: fixed;
+  top: clamp(1.25rem, 2.4vw, 2rem);
+  right: clamp(1.25rem, 2.4vw, 2rem);
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(7, 9, 22, 0.72);
+  color: rgba(255, 255, 255, 0.75);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, color 0.2s ease,
+    border 0.2s ease;
+  z-index: 5;
+}
+
+.debug-toggle:hover,
+.debug-toggle:focus-visible {
+  color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(169, 135, 255, 0.6);
+  box-shadow: 0 8px 20px rgba(22, 24, 45, 0.45);
+  outline: none;
+}
+
+.debug-toggle.is-on {
+  background: linear-gradient(120deg, rgba(169, 135, 255, 0.95), rgba(125, 228, 255, 0.9));
+  color: #0b0b15;
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.debug-toggle__icon {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .app__main {
@@ -234,6 +274,14 @@ body {
   padding: 0.85rem 1rem;
   font-size: 1rem;
   transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.field input[type="date"].is-empty {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.field input[type="date"].is-empty::-webkit-datetime-edit {
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .field input:focus,

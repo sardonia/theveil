@@ -49,15 +49,38 @@ export function isDebugEnabled(): boolean {
   return isDev || fromStorage;
 }
 
+export function isDebugOverlayVisible(): boolean {
+  return overlayVisible;
+}
+
+export function setDebugEnabled(enabled: boolean) {
+  try {
+    if (enabled) {
+      localStorage.setItem("VEIL_DEBUG", "1");
+    } else {
+      localStorage.removeItem("VEIL_DEBUG");
+    }
+  } catch {
+    // ignore storage failures
+  }
+
+  if (enabled) {
+    initDebug();
+    setOverlayVisible(true);
+  } else {
+    setOverlayVisible(false);
+  }
+}
+
 export function initDebug() {
   if (installed) return;
   installed = true;
   if (!isDebugEnabled()) return;
 
   installOverlay();
-  // Show the overlay by default in debug mode so diagnostics are visible even
-  // if DevTools are hard to access (common in WKWebView-based apps).
-  setOverlayVisible(true);
+  // Keep the overlay hidden by default; it can be enabled via the UI toggle
+  // or keyboard shortcut when needed.
+  setOverlayVisible(false);
   installGlobalErrorHandlers();
   installGlobalPointerTracer();
 
