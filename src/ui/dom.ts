@@ -24,6 +24,15 @@ export function populateSelects() {
   }
 }
 
+export function updateBirthdateInputState(
+  input: HTMLInputElement | null = document.querySelector<HTMLInputElement>(
+    "#birthdate-input"
+  )
+) {
+  if (!input) return;
+  input.classList.toggle("is-empty", input.value.length === 0);
+}
+
 export function renderProfileDraft(profile: ProfileDraft) {
   const nameInput = document.querySelector<HTMLInputElement>("#name-input");
   const birthInput = document.querySelector<HTMLInputElement>("#birthdate-input");
@@ -34,6 +43,7 @@ export function renderProfileDraft(profile: ProfileDraft) {
   if (birthInput) birthInput.value = profile.birthdate;
   if (moodInput) moodInput.value = profile.mood;
   if (personalityInput) personalityInput.value = profile.personality;
+  updateBirthdateInputState(birthInput);
 }
 
 export function renderValidationErrors(
