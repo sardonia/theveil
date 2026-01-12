@@ -159,7 +159,10 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     }
     loadingShell?.classList.remove("is-hidden");
   } else if (status.status === "ready") {
-    label.textContent = "The stars are ready.";
+    const sizeLabel = Number.isFinite(status.modelSizeMb)
+      ? ` (${status.modelSizeMb.toFixed(1)} MB)`
+      : "";
+    label.textContent = `Model loaded${sizeLabel}.`;
     progress.style.width = "100%";
     if (loadingLabel) loadingLabel.textContent = "The stars are ready.";
     if (loadingProgress) loadingProgress.style.width = "100%";

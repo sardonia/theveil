@@ -31,10 +31,10 @@ mod mistral_backend {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum ModelStatus {
-  Unloaded,
-  Loading { progress: f32 },
-  Ready,
-  Error { message: String },
+    Unloaded,
+    Loading { progress: f32 },
+    Ready { model_size_mb: f32 },
+    Error { message: String },
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -224,8 +224,10 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
             .and_then(|model_path| EmbeddedBackend::new(model_path))
         {
             Ok(backend) => {
+                let model_size_mb =
+                    (backend._model_bytes.len() as f32) / (1024.0 * 1024.0);
                 state_clone.set_backend(Arc::new(backend));
-                state_clone.set_status(ModelStatus::Ready);
+                state_clone.set_status(ModelStatus::Ready { model_size_mb });
                 emit_status(&app_clone, state_clone.get_status());
             }
             Err(message) => {
@@ -322,7 +324,7 @@ fn stream_message(app: &AppHandle, message: &str) {
 
 fn parse_reading_json(json: String, status: ModelStatus) -> Result<Reading, String> {
     let mut reading: Reading = serde_json::from_str(&json).map_err(|error| error.to_string())?;
-    reading.source = if matches!(status, ModelStatus::Ready) {
+    reading.source = if matches!(status, ModelStatus::Ready { .. }) {
         "model".to_string()
     } else {
         "stub".to_string()
