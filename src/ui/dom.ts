@@ -232,29 +232,41 @@ export function renderBusy(isGenerating: boolean) {
   copy.disabled = isGenerating;
 }
 
-let streamTextNode: Text | null = null;
+const streamTargets = new Map<HTMLElement, Text>();
 
-function getStreamContainer() {
-  return document.querySelector<HTMLElement>("#reading-stream");
+function getStreamTargets() {
+  const targets: HTMLElement[] = [];
+  const loadingStream = document.querySelector<HTMLElement>("#reading-stream");
+  const messageStream = document.querySelector<HTMLElement>(".reading__message");
+  if (loadingStream) targets.push(loadingStream);
+  if (messageStream) targets.push(messageStream);
+  return targets;
 }
 
 export function resetReadingStream() {
-  const container = getStreamContainer();
-  if (!container) return;
-  container.textContent = "";
-  streamTextNode = document.createTextNode("");
-  container.appendChild(streamTextNode);
+  const targets = getStreamTargets();
+  if (targets.length === 0) return;
+  targets.forEach((target) => {
+    target.textContent = "";
+    const node = document.createTextNode("");
+    target.appendChild(node);
+    streamTargets.set(target, node);
+  });
 }
 
 export function appendReadingStream(chunk: string) {
-  const container = getStreamContainer();
-  if (!container) return;
-  if (!streamTextNode || streamTextNode.parentNode !== container) {
-    streamTextNode = document.createTextNode(container.textContent ?? "");
-    container.textContent = "";
-    container.appendChild(streamTextNode);
-  }
-  streamTextNode.data += chunk;
+  const targets = getStreamTargets();
+  if (targets.length === 0) return;
+  targets.forEach((target) => {
+    let node = streamTargets.get(target);
+    if (!node || node.parentNode !== target) {
+      node = document.createTextNode(target.textContent ?? "");
+      target.textContent = "";
+      target.appendChild(node);
+      streamTargets.set(target, node);
+    }
+    node.data += chunk;
+  });
 }
 
 export function showToast(message: string) {
