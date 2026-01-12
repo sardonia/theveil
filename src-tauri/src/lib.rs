@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use chrono::Datelike;
 
 #[cfg(feature = "mistral")]
@@ -318,7 +318,7 @@ fn parse_reading_json(json: String, status: ModelStatus) -> Result<Reading, Stri
 }
 
 fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let mut candidates = Vec::new();
+    let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(resource_dir) = app.path().resource_dir() {
         candidates.push(resource_dir.join("veil.gguf"));
     }
