@@ -11,6 +11,7 @@ let loadingHideTimeout: number | null = null;
 let loadedShownAt: number | null = null;
 let lastLoadedKey: string | null = null;
 let loadingDismissed = false;
+let readingStreamBuffer = "";
 
 function hideOverlay() {
   const loadingShell = document.querySelector<HTMLElement>("#app-loading");
@@ -299,7 +300,10 @@ export function renderReading(reading: Reading | null, profile: ProfileDraft | n
   if (sourceEl) {
     sourceEl.textContent = `Runtime: ${reading.source === "model" ? "Model" : "Stub"}`;
   }
-  if (messageEl) messageEl.textContent = reading.message;
+  const fallbackMessage = reading.message.trim().length > 0
+    ? reading.message
+    : readingStreamBuffer.trim();
+  if (messageEl) messageEl.textContent = fallbackMessage;
   if (themesEl) {
     themesEl.innerHTML = reading.themes.map((theme) => `<li>${theme}</li>`).join("");
   }
@@ -337,6 +341,7 @@ function getStreamTargets() {
 export function resetReadingStream() {
   const targets = getStreamTargets();
   if (targets.length === 0) return;
+  readingStreamBuffer = "";
   targets.forEach((target) => {
     target.textContent = "";
     const node = document.createTextNode("");
@@ -348,6 +353,7 @@ export function resetReadingStream() {
 export function appendReadingStream(chunk: string) {
   const targets = getStreamTargets();
   if (targets.length === 0) return;
+  readingStreamBuffer += chunk;
   targets.forEach((target) => {
     let node = streamTargets.get(target);
     if (!node || node.parentNode !== target) {
