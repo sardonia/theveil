@@ -75,6 +75,7 @@ body {
   margin: 0 0 0.6rem;
   background: linear-gradient(120deg, #ffffff 20%, var(--accent-soft) 50%, var(--accent) 90%);
   -webkit-background-clip: text;
+    background-clip: text;
   color: transparent;
   letter-spacing: -0.02em;
 }
