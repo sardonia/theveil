@@ -354,8 +354,10 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   requestAnimationFrame(() => {
-    initModel();
-    debugLog("log", "initModel:started");
+    window.setTimeout(() => {
+      initModel();
+      debugLog("log", "initModel:started");
+    }, 0);
   });
   initReadingStream();
   debugLog("log", "initReadingStream:started");
