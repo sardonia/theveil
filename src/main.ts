@@ -141,9 +141,11 @@ function initReadingStream() {
     })
     .then(() => {
       debugLog("log", "initReadingStream:ready", { target: appWindow.label });
+      debugModelLog("log", "reading:stream:listener:ready", { target: appWindow.label });
     })
     .catch((error) => {
       debugLog("error", "initReadingStream:failed", error);
+      debugModelLog("error", "reading:stream:listener:failed", error);
     });
 }
 

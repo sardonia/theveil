@@ -96,20 +96,21 @@ export function initDebug() {
   installGlobalPointerTracer();
 
   debugLog("log", "Debug enabled. Toggle overlay: Cmd/Ctrl+Shift+D");
+  debugModelLog("log", "model:debug:ready");
 }
 
 export function debugLog(level: LogLevel, message: string, data?: unknown) {
-  if (!isDebugEnabled()) return;
   const entry = createEntry(level, message, data);
   generalLogBuffer.push(entry);
+  if (!isDebugEnabled()) return;
   logToConsole(entry);
   appendOverlayEntry(entry, generalPaneEl);
 }
 
 export function debugModelLog(level: LogLevel, message: string, data?: unknown) {
-  if (!isDebugEnabled()) return;
   const entry = createEntry(level, message, data);
   modelLogBuffer.push(entry);
+  if (!isDebugEnabled()) return;
   logToConsole(entry);
   appendOverlayEntry(entry, modelPaneEl);
 }
@@ -304,7 +305,9 @@ function buildPane(title: string) {
 
   const list = document.createElement("div");
   list.style.flex = "1";
-  list.style.overflow = "auto";
+  list.style.overflowX = "auto";
+  list.style.overflowY = "auto";
+  list.style.scrollbarGutter = "stable both-edges";
   list.style.whiteSpace = "pre";
 
   pane.appendChild(header);
