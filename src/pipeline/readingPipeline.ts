@@ -1,5 +1,6 @@
 import type { AppState, ProfileDraft, Reading } from "../domain/types";
 import { HoroscopeRepository } from "../repository/horoscopeRepository";
+import { debugModelLog } from "../debug/logger";
 
 export interface PipelineContext {
   profile: ProfileDraft;
@@ -21,6 +22,9 @@ export class BuildPromptStep implements PipelineStep {
       `Personality: ${context.profile.personality}`,
       `Date: ${context.date}`,
     ].join(" | ");
+    debugModelLog("log", "pipeline:prompt:built", {
+      prompt: context.prompt,
+    });
   }
 }
 
@@ -32,12 +36,19 @@ export class InvokeModelStep implements PipelineStep {
   }
 
   async run(context: PipelineContext, state: AppState) {
+    debugModelLog("log", "pipeline:invoke:start", {
+      modelStatus: state.model.status,
+    });
     context.reading = await this.repository.generate(
       context.profile,
       context.date,
       context.prompt,
       state.model.status
     );
+    debugModelLog("log", "pipeline:invoke:done", {
+      source: context.reading?.source,
+      messageLength: context.reading?.message.length,
+    });
   }
 }
 
@@ -51,6 +62,9 @@ export class PostProcessStep implements PipelineStep {
       ...context.reading,
       message: message.charAt(0).toUpperCase() + message.slice(1),
     };
+    debugModelLog("log", "pipeline:postprocess:done", {
+      messageLength: context.reading.message.length,
+    });
   }
 }
 
@@ -67,7 +81,13 @@ export async function runReadingPipeline(
   ];
   const context: PipelineContext = { profile, date };
   for (const step of steps) {
+    debugModelLog("log", "pipeline:step:start", {
+      step: step.constructor.name,
+    });
     await step.run(context, state);
+    debugModelLog("log", "pipeline:step:end", {
+      step: step.constructor.name,
+    });
   }
   if (!context.reading) {
     throw new Error("Unable to generate reading.");
