@@ -98,7 +98,7 @@ impl HoroscopeModelBackend for StubBackend {
         request: &ReadingRequest,
         _sampling: &SamplingParams,
     ) -> Result<String, String> {
-        serde_json::to_string(&generate_stub_reading(request))
+        serde_json::to_string(&crate::generate_stub_reading(request))
             .map_err(|error| error.to_string())
     }
 }
@@ -138,7 +138,7 @@ impl HoroscopeModelBackend for EmbeddedBackend {
         sampling: &SamplingParams,
     ) -> Result<String, String> {
         let _ = (&self.model_path, sampling);
-        serde_json::to_string(&generate_stub_reading(request))
+        serde_json::to_string(&crate::generate_stub_reading(request))
             .map_err(|error| error.to_string())
     }
 }
@@ -307,7 +307,7 @@ async fn generate_horoscope(
         Err(error) => {
             if matches!(source, ReadingSource::Model) {
                 eprintln!("Model inference failed, falling back to stub: {}", error);
-                Ok(generate_stub_reading(&request))
+                Ok(crate::generate_stub_reading(&request))
             } else {
                 Err(error)
             }
@@ -345,7 +345,7 @@ async fn generate_horoscope_stream(
         Err(error) => {
             if matches!(source, ReadingSource::Model) {
                 eprintln!("Model inference failed, falling back to stub: {}", error);
-                let reading = generate_stub_reading(&request);
+                let reading = crate::generate_stub_reading(&request);
                 stream_message(&app, &reading.message).await;
                 emit_stream_event(&app, StreamEvent::End);
                 Ok(reading)
