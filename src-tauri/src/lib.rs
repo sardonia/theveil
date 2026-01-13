@@ -338,7 +338,7 @@ async fn generate_horoscope_stream(
         .and_then(|json| parse_reading_json(json, source));
     match result {
         Ok(reading) => {
-            stream_message(&app, &reading.message);
+            stream_message(&app, &reading.message).await;
             emit_stream_event(&app, StreamEvent::End);
             Ok(reading)
         }
@@ -346,7 +346,7 @@ async fn generate_horoscope_stream(
             if matches!(source, ReadingSource::Model) {
                 eprintln!("Model inference failed, falling back to stub: {}", error);
                 let reading = generate_stub_reading(&request);
-                stream_message(&app, &reading.message);
+                stream_message(&app, &reading.message).await;
                 emit_stream_event(&app, StreamEvent::End);
                 Ok(reading)
             } else {
@@ -362,10 +362,13 @@ fn emit_status(app: &AppHandle, status: ModelStatus) {
 }
 
 fn emit_stream_event(app: &AppHandle, event: StreamEvent) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.emit("reading:stream", event.clone());
+    }
     let _ = app.emit("reading:stream", event);
 }
 
-fn stream_message(app: &AppHandle, message: &str) {
+async fn stream_message(app: &AppHandle, message: &str) {
     let chunk_size = 28;
     for chunk in message.as_bytes().chunks(chunk_size) {
         if let Ok(chunk_str) = std::str::from_utf8(chunk) {
@@ -376,7 +379,7 @@ fn stream_message(app: &AppHandle, message: &str) {
                 },
             );
         }
-        std::thread::sleep(Duration::from_millis(40));
+        tokio::time::sleep(Duration::from_millis(40)).await;
     }
 }
 

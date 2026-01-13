@@ -4,6 +4,7 @@ import { EmbeddedModelAdapter } from "../adapters/modelAdapter";
 import { StubAdapter } from "../adapters/stubAdapter";
 import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
 import { emit } from "@tauri-apps/api/event";
+import { debugModelLog } from "../debug/logger";
 
 type StreamEvent =
   | { kind: "start" }
@@ -28,8 +29,14 @@ export class HoroscopeRepository {
     prompt: string | undefined,
     status: ModelStatus
   ): Promise<Reading> {
+    debugModelLog("log", "repository:generate:start", {
+      status,
+      date,
+      hasPrompt: Boolean(prompt),
+    });
     if (status.status === "loaded") {
       try {
+        debugModelLog("log", "repository:generate:using:model");
         return await this.embeddedAdapter.generate(
           profile,
           date,
@@ -37,23 +44,36 @@ export class HoroscopeRepository {
           DEFAULT_SAMPLING_PARAMS
         );
       } catch {
+        debugModelLog("warn", "repository:generate:model:error", {
+          message: "Model adapter failed. Falling back to stub.",
+        });
         return this.emitStubStream(profile, date);
       }
     }
+    debugModelLog("warn", "repository:generate:using:stub", {
+      reason: status.status,
+    });
     return this.emitStubStream(profile, date);
   }
 
   private async emitStubStream(profile: ProfileDraft, date: string) {
+    debugModelLog("log", "repository:stream:stub:start");
     await emitStreamEvent({ kind: "start" });
     const reading = await this.stubAdapter.generate(profile, date);
     await streamMessage(reading.message);
     await emitStreamEvent({ kind: "end" });
+    debugModelLog("log", "repository:stream:stub:end", {
+      messageLength: reading.message.length,
+    });
     return reading;
   }
 }
 
 async function emitStreamEvent(event: StreamEvent) {
   await emit("reading:stream", event);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("reading:stream-local", { detail: event }));
+  }
 }
 
 async function streamMessage(message: string) {

@@ -10,8 +10,19 @@ let loadingShownAt: number | null = null;
 let loadingHideTimeout: number | null = null;
 let loadedShownAt: number | null = null;
 let lastLoadedKey: string | null = null;
+let loadingDismissed = false;
+let readingStreamBuffer = "";
 
-function scheduleLoadingHide(loadingShell: HTMLElement) {
+function hideOverlay() {
+  const loadingShell = document.querySelector<HTMLElement>("#app-loading");
+  if (!loadingShell) return;
+  loadingShell.classList.add("is-hidden");
+  loadingHideTimeout = null;
+  loadingShownAt = null;
+  loadingDismissed = true;
+}
+
+function scheduleLoadingHide() {
   if (loadingHideTimeout !== null) {
     window.clearTimeout(loadingHideTimeout);
   }
@@ -22,12 +33,6 @@ function scheduleLoadingHide(loadingShell: HTMLElement) {
     MIN_LOADING_MS - elapsed,
     MIN_LOADED_MS - elapsedLoaded
   );
-  if (remaining === 0) {
-    loadingShell.classList.add("is-hidden");
-    loadingHideTimeout = null;
-    loadingShownAt = null;
-    loadingDismissed = true;
-  };
   if (remaining === 0) {
     hideOverlay();
     return;
@@ -213,7 +218,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
       if (!loadedShownAt) {
         loadedShownAt = Date.now();
       }
-      scheduleLoadingHide(loadingShell);
+      scheduleLoadingHide();
     }
     const loadedKey = `${status.modelPath}|${status.modelSizeBytes}`;
     if (isDebugEnabled() && loadedKey !== lastLoadedKey) {
@@ -240,7 +245,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
       if (!loadedShownAt) {
         loadedShownAt = Date.now();
       }
-      scheduleLoadingHide(loadingShell);
+      scheduleLoadingHide();
     }
   } else {
     label.textContent = "Preparing the star map…";
@@ -295,7 +300,10 @@ export function renderReading(reading: Reading | null, profile: ProfileDraft | n
   if (sourceEl) {
     sourceEl.textContent = `Runtime: ${reading.source === "model" ? "Model" : "Stub"}`;
   }
-  if (messageEl) messageEl.textContent = reading.message;
+  const fallbackMessage = reading.message.trim().length > 0
+    ? reading.message
+    : readingStreamBuffer.trim();
+  if (messageEl) messageEl.textContent = fallbackMessage;
   if (themesEl) {
     themesEl.innerHTML = reading.themes.map((theme) => `<li>${theme}</li>`).join("");
   }
@@ -333,6 +341,7 @@ function getStreamTargets() {
 export function resetReadingStream() {
   const targets = getStreamTargets();
   if (targets.length === 0) return;
+  readingStreamBuffer = "";
   targets.forEach((target) => {
     target.textContent = "";
     const node = document.createTextNode("");
@@ -344,6 +353,7 @@ export function resetReadingStream() {
 export function appendReadingStream(chunk: string) {
   const targets = getStreamTargets();
   if (targets.length === 0) return;
+  readingStreamBuffer += chunk;
   targets.forEach((target) => {
     let node = streamTargets.get(target);
     if (!node || node.parentNode !== target) {

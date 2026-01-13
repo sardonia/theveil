@@ -1,8 +1,19 @@
 type LogLevel = "log" | "warn" | "error";
 
 let overlayEl: HTMLDivElement | null = null;
+let generalPaneEl: HTMLDivElement | null = null;
+let modelPaneEl: HTMLDivElement | null = null;
 let overlayVisible = false;
 let installed = false;
+const generalLogBuffer: OverlayEntry[] = [];
+const modelLogBuffer: OverlayEntry[] = [];
+
+type OverlayEntry = {
+  level: LogLevel;
+  message: string;
+  data?: unknown;
+  timestamp: string;
+};
 
 function safeStringify(value: unknown): string {
   try {
@@ -65,17 +76,17 @@ export function setDebugEnabled(enabled: boolean) {
   }
 
   if (enabled) {
-    initDebug();
+    initDebug(true);
     setOverlayVisible(true);
   } else {
     setOverlayVisible(false);
   }
 }
 
-export function initDebug() {
+export function initDebug(force = false) {
   if (installed) return;
+  if (!force && !isDebugEnabled()) return;
   installed = true;
-  if (!isDebugEnabled()) return;
 
   installOverlay();
   // Keep the overlay hidden by default; it can be enabled via the UI toggle
@@ -85,42 +96,79 @@ export function initDebug() {
   installGlobalPointerTracer();
 
   debugLog("log", "Debug enabled. Toggle overlay: Cmd/Ctrl+Shift+D");
+  debugModelLog("log", "model:debug:ready");
 }
 
 export function debugLog(level: LogLevel, message: string, data?: unknown) {
+  const entry = createEntry(level, message, data);
+  generalLogBuffer.push(entry);
   if (!isDebugEnabled()) return;
-  const prefix = "[Veil]";
-  const timestamp = new Date().toISOString().slice(11, 23);
-  const base = `${prefix} ${timestamp} ${message}`;
+  logToConsole(entry);
+  appendOverlayEntry(entry, generalPaneEl);
+}
 
-  if (level === "error") {
+export function debugModelLog(level: LogLevel, message: string, data?: unknown) {
+  const entry = createEntry(level, message, data);
+  modelLogBuffer.push(entry);
+  if (!isDebugEnabled()) return;
+  logToConsole(entry);
+  appendOverlayEntry(entry, modelPaneEl);
+}
+
+function createEntry(level: LogLevel, message: string, data?: unknown): OverlayEntry {
+  return {
+    level,
+    message,
+    data,
+    timestamp: new Date().toISOString().slice(11, 23),
+  };
+}
+
+function logToConsole(entry: OverlayEntry) {
+  const prefix = "[Veil]";
+  const base = `${prefix} ${entry.timestamp} ${entry.message}`;
+
+  if (entry.level === "error") {
     // eslint-disable-next-line no-console
-    console.error(base, data ?? "");
-  } else if (level === "warn") {
+    console.error(base, entry.data ?? "");
+  } else if (entry.level === "warn") {
     // eslint-disable-next-line no-console
-    console.warn(base, data ?? "");
+    console.warn(base, entry.data ?? "");
   } else {
     // eslint-disable-next-line no-console
-    console.log(base, data ?? "");
+    console.log(base, entry.data ?? "");
   }
 
-  if (!overlayEl) return;
-  if (!overlayVisible) return;
+}
 
-  const entry = document.createElement("div");
-  entry.style.whiteSpace = "pre-wrap";
-  entry.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
-  entry.style.padding = "6px 8px";
-  entry.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  entry.style.fontSize = "12px";
-  entry.style.lineHeight = "1.35";
+function appendOverlayEntry(entry: OverlayEntry, target: HTMLDivElement | null) {
+  if (!overlayEl || !overlayVisible) return;
+  if (!target) return;
+  target.appendChild(createEntryElement(entry));
+  target.scrollTop = target.scrollHeight;
+}
 
-  const color = level === "error" ? "#ffb3c7" : level === "warn" ? "#ffe2a8" : "#e9efff";
-  entry.style.color = color;
+function createEntryElement(entry: OverlayEntry) {
+  const prefix = "[Veil]";
+  const base = `${prefix} ${entry.timestamp} ${entry.message}`;
 
-  entry.textContent = data === undefined ? base : `${base}\n${safeStringify(data)}`;
-  overlayEl.appendChild(entry);
-  overlayEl.scrollTop = overlayEl.scrollHeight;
+  const element = document.createElement("div");
+  element.style.whiteSpace = "pre-wrap";
+  element.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
+  element.style.padding = "6px 8px";
+  element.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  element.style.fontSize = "12px";
+  element.style.lineHeight = "1.35";
+
+  const color = entry.level === "error"
+    ? "#ffb3c7"
+    : entry.level === "warn"
+      ? "#ffe2a8"
+      : "#e9efff";
+  element.style.color = color;
+
+  element.textContent = entry.data === undefined ? base : `${base}\n${safeStringify(entry.data)}`;
+  return element;
 }
 
 function installOverlay() {
@@ -134,14 +182,13 @@ function installOverlay() {
   overlayEl.style.top = "12px";
   overlayEl.style.bottom = "auto";
   overlayEl.style.maxHeight = "35vh";
-  overlayEl.style.overflow = "auto";
+  overlayEl.style.display = "none";
   overlayEl.style.background = "rgba(10, 12, 26, 0.88)";
   overlayEl.style.border = "1px solid rgba(255,255,255,0.16)";
   overlayEl.style.borderRadius = "12px";
   overlayEl.style.backdropFilter = "blur(10px)";
   overlayEl.style.boxShadow = "0 18px 50px rgba(0,0,0,0.45)";
   overlayEl.style.zIndex = "999999";
-  overlayEl.style.display = "none";
 
   const header = document.createElement("div");
   header.style.display = "flex";
@@ -178,11 +225,10 @@ function installOverlay() {
   clearBtn.style.color = "rgba(255,255,255,0.82)";
   clearBtn.style.cursor = "pointer";
   clearBtn.addEventListener("click", () => {
-    if (!overlayEl) return;
-    // Remove everything after header.
-    while (overlayEl.childNodes.length > 1) {
-      overlayEl.removeChild(overlayEl.lastChild as ChildNode);
-    }
+    if (generalPaneEl) generalPaneEl.innerHTML = "";
+    if (modelPaneEl) modelPaneEl.innerHTML = "";
+    generalLogBuffer.length = 0;
+    modelLogBuffer.length = 0;
   });
 
   const hideBtn = document.createElement("button");
@@ -204,6 +250,7 @@ function installOverlay() {
   header.appendChild(actions);
 
   overlayEl.appendChild(header);
+  overlayEl.appendChild(buildSplitPane());
   document.body.appendChild(overlayEl);
 
   document.addEventListener("keydown", (event) => {
@@ -215,10 +262,82 @@ function installOverlay() {
   });
 }
 
+function buildSplitPane() {
+  const body = document.createElement("div");
+  body.style.display = "grid";
+  body.style.gridTemplateColumns = "1fr 1fr";
+  body.style.gap = "8px";
+  body.style.padding = "8px";
+  body.style.maxHeight = "calc(35vh - 44px)";
+
+  const { pane: generalPane, list: generalList } = buildPane("Interaction log");
+  const { pane: modelPane, list: modelList } = buildPane("Model lifecycle");
+
+  generalPaneEl = generalList;
+  modelPaneEl = modelList;
+  renderBufferedLogs();
+
+  body.appendChild(generalPane);
+  body.appendChild(modelPane);
+  return body;
+}
+
+function buildPane(title: string) {
+  const pane = document.createElement("div");
+  pane.style.display = "flex";
+  pane.style.flexDirection = "column";
+  pane.style.minWidth = "0";
+  pane.style.minHeight = "0";
+  pane.style.border = "1px solid rgba(255,255,255,0.12)";
+  pane.style.borderRadius = "10px";
+  pane.style.overflow = "hidden";
+  pane.style.background = "rgba(10, 12, 26, 0.62)";
+
+  const header = document.createElement("div");
+  header.textContent = title;
+  header.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  header.style.fontSize = "11px";
+  header.style.textTransform = "uppercase";
+  header.style.letterSpacing = "0.08em";
+  header.style.color = "rgba(255,255,255,0.7)";
+  header.style.padding = "6px 10px";
+  header.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
+  header.style.background = "rgba(10, 12, 26, 0.9)";
+
+  const list = document.createElement("div");
+  list.style.flex = "1";
+  list.style.minHeight = "0";
+  list.style.overflowX = "auto";
+  list.style.overflowY = "auto";
+  list.style.scrollbarGutter = "stable both-edges";
+  list.style.whiteSpace = "pre";
+
+  pane.appendChild(header);
+  pane.appendChild(list);
+  return { pane, list };
+}
+
 function setOverlayVisible(visible: boolean) {
   overlayVisible = visible;
   if (!overlayEl) return;
   overlayEl.style.display = visible ? "block" : "none";
+  if (visible) {
+    renderBufferedLogs();
+  }
+}
+
+function renderBufferedLogs() {
+  if (!generalPaneEl || !modelPaneEl) return;
+  generalPaneEl.innerHTML = "";
+  modelPaneEl.innerHTML = "";
+  generalLogBuffer.forEach((entry) => {
+    generalPaneEl?.appendChild(createEntryElement(entry));
+  });
+  modelLogBuffer.forEach((entry) => {
+    modelPaneEl?.appendChild(createEntryElement(entry));
+  });
+  generalPaneEl.scrollTop = generalPaneEl.scrollHeight;
+  modelPaneEl.scrollTop = modelPaneEl.scrollHeight;
 }
 
 function installGlobalErrorHandlers() {
