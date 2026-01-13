@@ -1,6 +1,8 @@
 type LogLevel = "log" | "warn" | "error";
 
 let overlayEl: HTMLDivElement | null = null;
+let generalPaneEl: HTMLDivElement | null = null;
+let modelPaneEl: HTMLDivElement | null = null;
 let overlayVisible = false;
 let installed = false;
 
@@ -89,6 +91,17 @@ export function initDebug() {
 
 export function debugLog(level: LogLevel, message: string, data?: unknown) {
   if (!isDebugEnabled()) return;
+  logToConsole(level, message, data);
+  appendOverlayEntry(level, message, data, generalPaneEl);
+}
+
+export function debugModelLog(level: LogLevel, message: string, data?: unknown) {
+  if (!isDebugEnabled()) return;
+  logToConsole(level, message, data);
+  appendOverlayEntry(level, message, data, modelPaneEl);
+}
+
+function logToConsole(level: LogLevel, message: string, data?: unknown) {
   const prefix = "[Veil]";
   const timestamp = new Date().toISOString().slice(11, 23);
   const base = `${prefix} ${timestamp} ${message}`;
@@ -104,8 +117,20 @@ export function debugLog(level: LogLevel, message: string, data?: unknown) {
     console.log(base, data ?? "");
   }
 
-  if (!overlayEl) return;
-  if (!overlayVisible) return;
+}
+
+function appendOverlayEntry(
+  level: LogLevel,
+  message: string,
+  data: unknown,
+  target: HTMLDivElement | null
+) {
+  if (!overlayEl || !overlayVisible) return;
+  if (!target) return;
+
+  const prefix = "[Veil]";
+  const timestamp = new Date().toISOString().slice(11, 23);
+  const base = `${prefix} ${timestamp} ${message}`;
 
   const entry = document.createElement("div");
   entry.style.whiteSpace = "pre-wrap";
@@ -119,8 +144,8 @@ export function debugLog(level: LogLevel, message: string, data?: unknown) {
   entry.style.color = color;
 
   entry.textContent = data === undefined ? base : `${base}\n${safeStringify(data)}`;
-  overlayEl.appendChild(entry);
-  overlayEl.scrollTop = overlayEl.scrollHeight;
+  target.appendChild(entry);
+  target.scrollTop = target.scrollHeight;
 }
 
 function installOverlay() {
@@ -134,14 +159,13 @@ function installOverlay() {
   overlayEl.style.top = "12px";
   overlayEl.style.bottom = "auto";
   overlayEl.style.maxHeight = "35vh";
-  overlayEl.style.overflow = "auto";
+  overlayEl.style.display = "none";
   overlayEl.style.background = "rgba(10, 12, 26, 0.88)";
   overlayEl.style.border = "1px solid rgba(255,255,255,0.16)";
   overlayEl.style.borderRadius = "12px";
   overlayEl.style.backdropFilter = "blur(10px)";
   overlayEl.style.boxShadow = "0 18px 50px rgba(0,0,0,0.45)";
   overlayEl.style.zIndex = "999999";
-  overlayEl.style.display = "none";
 
   const header = document.createElement("div");
   header.style.display = "flex";
@@ -178,11 +202,8 @@ function installOverlay() {
   clearBtn.style.color = "rgba(255,255,255,0.82)";
   clearBtn.style.cursor = "pointer";
   clearBtn.addEventListener("click", () => {
-    if (!overlayEl) return;
-    // Remove everything after header.
-    while (overlayEl.childNodes.length > 1) {
-      overlayEl.removeChild(overlayEl.lastChild as ChildNode);
-    }
+    if (generalPaneEl) generalPaneEl.innerHTML = "";
+    if (modelPaneEl) modelPaneEl.innerHTML = "";
   });
 
   const hideBtn = document.createElement("button");
@@ -204,6 +225,7 @@ function installOverlay() {
   header.appendChild(actions);
 
   overlayEl.appendChild(header);
+  overlayEl.appendChild(buildSplitPane());
   document.body.appendChild(overlayEl);
 
   document.addEventListener("keydown", (event) => {
@@ -213,6 +235,56 @@ function installOverlay() {
     event.preventDefault();
     setOverlayVisible(!overlayVisible);
   });
+}
+
+function buildSplitPane() {
+  const body = document.createElement("div");
+  body.style.display = "grid";
+  body.style.gridTemplateColumns = "1fr 1fr";
+  body.style.gap = "8px";
+  body.style.padding = "8px";
+  body.style.maxHeight = "calc(35vh - 44px)";
+
+  const { pane: generalPane, list: generalList } = buildPane("Interaction log");
+  const { pane: modelPane, list: modelList } = buildPane("Model lifecycle");
+
+  generalPaneEl = generalList;
+  modelPaneEl = modelList;
+
+  body.appendChild(generalPane);
+  body.appendChild(modelPane);
+  return body;
+}
+
+function buildPane(title: string) {
+  const pane = document.createElement("div");
+  pane.style.display = "flex";
+  pane.style.flexDirection = "column";
+  pane.style.minWidth = "0";
+  pane.style.border = "1px solid rgba(255,255,255,0.12)";
+  pane.style.borderRadius = "10px";
+  pane.style.overflow = "hidden";
+  pane.style.background = "rgba(10, 12, 26, 0.62)";
+
+  const header = document.createElement("div");
+  header.textContent = title;
+  header.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  header.style.fontSize = "11px";
+  header.style.textTransform = "uppercase";
+  header.style.letterSpacing = "0.08em";
+  header.style.color = "rgba(255,255,255,0.7)";
+  header.style.padding = "6px 10px";
+  header.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
+  header.style.background = "rgba(10, 12, 26, 0.9)";
+
+  const list = document.createElement("div");
+  list.style.flex = "1";
+  list.style.overflow = "auto";
+  list.style.whiteSpace = "pre";
+
+  pane.appendChild(header);
+  pane.appendChild(list);
+  return { pane, list };
 }
 
 function setOverlayVisible(visible: boolean) {

@@ -22,6 +22,7 @@ import {
 import { initStarfield } from "./ui/starfield";
 import {
   debugLog,
+  debugModelLog,
   initDebug,
   isDebugEnabled,
   isDebugOverlayVisible,
@@ -64,9 +65,11 @@ function initModel() {
   };
 
   scheduleFallback("Model initialization timed out.");
+  debugModelLog("log", "model:init:start");
   invoke<ModelStatus>("init_model")
     .then((status) => {
       commandBus.execute({ type: "ModelStatusUpdated", status });
+      debugModelLog("log", "model:init:response", status);
       if (status.status === "loaded" || status.status === "error") {
         clearFallback();
       } else {
@@ -76,6 +79,7 @@ function initModel() {
     .catch((error) => {
       clearFallback();
       debugLog("warn", "initModel:failed", error);
+      debugModelLog("error", "model:init:failed", error);
       commandBus.execute({
         type: "ModelStatusUpdated",
         status: { status: "error", message: "Model initialization failed." },
@@ -84,6 +88,7 @@ function initModel() {
 
   listen<ModelStatus>("model:status", (event) => {
     commandBus.execute({ type: "ModelStatusUpdated", status: event.payload });
+    debugModelLog("log", "model:status:update", event.payload);
     if (event.payload.status === "loaded" || event.payload.status === "error") {
       clearFallback();
     } else {
@@ -94,6 +99,7 @@ function initModel() {
 
 function initReadingStream() {
   let buffer = "";
+  let chunkCount = 0;
   let flushHandle: number | null = null;
 
   const flush = () => {
@@ -114,14 +120,23 @@ function initReadingStream() {
     .listen<StreamEvent>("reading:stream", (event) => {
       if (event.payload.kind === "start") {
         buffer = "";
+        chunkCount = 0;
         resetReadingStream();
+        debugModelLog("log", "reading:stream:start");
         return;
       }
       if (event.payload.kind === "chunk") {
         buffer += event.payload.chunk;
+        chunkCount += 1;
+        debugModelLog("log", "reading:stream:chunk", {
+          index: chunkCount,
+          length: event.payload.chunk.length,
+          chunk: event.payload.chunk,
+        });
         scheduleFlush();
         return;
       }
+      debugModelLog("log", "reading:stream:end", { chunks: chunkCount });
       flush();
     })
     .then(() => {
