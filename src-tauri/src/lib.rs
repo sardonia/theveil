@@ -362,6 +362,9 @@ fn emit_status(app: &AppHandle, status: ModelStatus) {
 }
 
 fn emit_stream_event(app: &AppHandle, event: StreamEvent) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.emit("reading:stream", event.clone());
+    }
     let _ = app.emit("reading:stream", event);
 }
 
