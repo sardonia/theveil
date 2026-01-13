@@ -3,7 +3,7 @@ import { profileSpec } from "../domain/specs";
 import { runReadingPipeline } from "../pipeline/readingPipeline";
 import type { DomainEvent } from "./events";
 import { AsyncQueue } from "./queue";
-import { debugLog, isDebugEnabled } from "../debug/logger";
+import { debugLog, debugModelLog, isDebugEnabled } from "../debug/logger";
 
 export type Command =
   | { type: "SubmitProfile"; profile: ProfileDraft }
@@ -65,6 +65,12 @@ export class CommandBus {
       { type: "ProfileSaved", profile },
       { type: "RouteChanged", route: "reading" },
     ]);
+    debugModelLog("log", "command:SubmitProfile:accepted", {
+      name: profile.name,
+      birthdate: profile.birthdate,
+      mood: profile.mood,
+      personality: profile.personality,
+    });
 
     debugLog("log", "command:SubmitProfile:routeChanged", {
       route: this.context.getState().ui.route,
@@ -79,7 +85,12 @@ export class CommandBus {
       hasProfile: Boolean(state.profile.saved),
       route: state.ui.route,
     });
+    debugModelLog("log", "command:GenerateReading:start", {
+      hasProfile: Boolean(state.profile.saved),
+      route: state.ui.route,
+    });
     if (!state.profile.saved) {
+      debugModelLog("warn", "command:GenerateReading:missingProfile");
       return this.context.applyEvents([
         {
           type: "ReadingGenerationFailed",
@@ -90,6 +101,7 @@ export class CommandBus {
 
     const snapshotBefore = this.context.getState();
     this.queue.enqueue(async () => {
+      debugModelLog("log", "command:GenerateReading:queue:begin");
       debugLog("log", "command:GenerateReading:queue:begin");
       this.context.applyEvents([{ type: "ReadingGenerationStarted" }]);
       try {
@@ -98,6 +110,11 @@ export class CommandBus {
           new Date().toISOString().slice(0, 10),
           this.context.getState()
         );
+        debugModelLog("log", "command:GenerateReading:success", {
+          title: reading.title,
+          sign: reading.sign,
+          source: reading.source,
+        });
         debugLog("log", "command:GenerateReading:pipeline:success", {
           title: reading.title,
           sign: reading.sign,
@@ -114,8 +131,10 @@ export class CommandBus {
       } catch (error) {
         const message = error instanceof Error ? error.message : "The stars were quiet.";
         debugLog("error", "command:GenerateReading:pipeline:error", error);
+        debugModelLog("error", "command:GenerateReading:failed", { message, error });
         this.context.applyEvents([{ type: "ReadingGenerationFailed", error: message }]);
       }
+      debugModelLog("log", "command:GenerateReading:queue:end");
       debugLog("log", "command:GenerateReading:queue:end");
     });
   }
