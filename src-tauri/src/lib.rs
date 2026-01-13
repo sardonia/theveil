@@ -402,9 +402,10 @@ fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
     }
     #[cfg(any(debug_assertions, dev))]
     {
-        candidates.push(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/veil.gguf"),
-        );
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        if let Some(project_dir) = manifest_dir.parent() {
+            candidates.push(project_dir.join("resources/veil.gguf"));
+        }
     }
 
     for candidate in &candidates {
