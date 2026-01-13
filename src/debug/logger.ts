@@ -5,6 +5,15 @@ let generalPaneEl: HTMLDivElement | null = null;
 let modelPaneEl: HTMLDivElement | null = null;
 let overlayVisible = false;
 let installed = false;
+const generalLogBuffer: OverlayEntry[] = [];
+const modelLogBuffer: OverlayEntry[] = [];
+
+type OverlayEntry = {
+  level: LogLevel;
+  message: string;
+  data?: unknown;
+  timestamp: string;
+};
 
 function safeStringify(value: unknown): string {
   try {
@@ -91,61 +100,74 @@ export function initDebug() {
 
 export function debugLog(level: LogLevel, message: string, data?: unknown) {
   if (!isDebugEnabled()) return;
-  logToConsole(level, message, data);
-  appendOverlayEntry(level, message, data, generalPaneEl);
+  const entry = createEntry(level, message, data);
+  generalLogBuffer.push(entry);
+  logToConsole(entry);
+  appendOverlayEntry(entry, generalPaneEl);
 }
 
 export function debugModelLog(level: LogLevel, message: string, data?: unknown) {
   if (!isDebugEnabled()) return;
-  logToConsole(level, message, data);
-  appendOverlayEntry(level, message, data, modelPaneEl);
+  const entry = createEntry(level, message, data);
+  modelLogBuffer.push(entry);
+  logToConsole(entry);
+  appendOverlayEntry(entry, modelPaneEl);
 }
 
-function logToConsole(level: LogLevel, message: string, data?: unknown) {
-  const prefix = "[Veil]";
-  const timestamp = new Date().toISOString().slice(11, 23);
-  const base = `${prefix} ${timestamp} ${message}`;
+function createEntry(level: LogLevel, message: string, data?: unknown): OverlayEntry {
+  return {
+    level,
+    message,
+    data,
+    timestamp: new Date().toISOString().slice(11, 23),
+  };
+}
 
-  if (level === "error") {
+function logToConsole(entry: OverlayEntry) {
+  const prefix = "[Veil]";
+  const base = `${prefix} ${entry.timestamp} ${entry.message}`;
+
+  if (entry.level === "error") {
     // eslint-disable-next-line no-console
-    console.error(base, data ?? "");
-  } else if (level === "warn") {
+    console.error(base, entry.data ?? "");
+  } else if (entry.level === "warn") {
     // eslint-disable-next-line no-console
-    console.warn(base, data ?? "");
+    console.warn(base, entry.data ?? "");
   } else {
     // eslint-disable-next-line no-console
-    console.log(base, data ?? "");
+    console.log(base, entry.data ?? "");
   }
 
 }
 
-function appendOverlayEntry(
-  level: LogLevel,
-  message: string,
-  data: unknown,
-  target: HTMLDivElement | null
-) {
+function appendOverlayEntry(entry: OverlayEntry, target: HTMLDivElement | null) {
   if (!overlayEl || !overlayVisible) return;
   if (!target) return;
-
-  const prefix = "[Veil]";
-  const timestamp = new Date().toISOString().slice(11, 23);
-  const base = `${prefix} ${timestamp} ${message}`;
-
-  const entry = document.createElement("div");
-  entry.style.whiteSpace = "pre-wrap";
-  entry.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
-  entry.style.padding = "6px 8px";
-  entry.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  entry.style.fontSize = "12px";
-  entry.style.lineHeight = "1.35";
-
-  const color = level === "error" ? "#ffb3c7" : level === "warn" ? "#ffe2a8" : "#e9efff";
-  entry.style.color = color;
-
-  entry.textContent = data === undefined ? base : `${base}\n${safeStringify(data)}`;
-  target.appendChild(entry);
+  target.appendChild(createEntryElement(entry));
   target.scrollTop = target.scrollHeight;
+}
+
+function createEntryElement(entry: OverlayEntry) {
+  const prefix = "[Veil]";
+  const base = `${prefix} ${entry.timestamp} ${entry.message}`;
+
+  const element = document.createElement("div");
+  element.style.whiteSpace = "pre-wrap";
+  element.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
+  element.style.padding = "6px 8px";
+  element.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  element.style.fontSize = "12px";
+  element.style.lineHeight = "1.35";
+
+  const color = entry.level === "error"
+    ? "#ffb3c7"
+    : entry.level === "warn"
+      ? "#ffe2a8"
+      : "#e9efff";
+  element.style.color = color;
+
+  element.textContent = entry.data === undefined ? base : `${base}\n${safeStringify(entry.data)}`;
+  return element;
 }
 
 function installOverlay() {
@@ -204,6 +226,8 @@ function installOverlay() {
   clearBtn.addEventListener("click", () => {
     if (generalPaneEl) generalPaneEl.innerHTML = "";
     if (modelPaneEl) modelPaneEl.innerHTML = "";
+    generalLogBuffer.length = 0;
+    modelLogBuffer.length = 0;
   });
 
   const hideBtn = document.createElement("button");
@@ -250,6 +274,7 @@ function buildSplitPane() {
 
   generalPaneEl = generalList;
   modelPaneEl = modelList;
+  renderBufferedLogs();
 
   body.appendChild(generalPane);
   body.appendChild(modelPane);
@@ -291,6 +316,23 @@ function setOverlayVisible(visible: boolean) {
   overlayVisible = visible;
   if (!overlayEl) return;
   overlayEl.style.display = visible ? "block" : "none";
+  if (visible) {
+    renderBufferedLogs();
+  }
+}
+
+function renderBufferedLogs() {
+  if (!generalPaneEl || !modelPaneEl) return;
+  generalPaneEl.innerHTML = "";
+  modelPaneEl.innerHTML = "";
+  generalLogBuffer.forEach((entry) => {
+    generalPaneEl?.appendChild(createEntryElement(entry));
+  });
+  modelLogBuffer.forEach((entry) => {
+    modelPaneEl?.appendChild(createEntryElement(entry));
+  });
+  generalPaneEl.scrollTop = generalPaneEl.scrollHeight;
+  modelPaneEl.scrollTop = modelPaneEl.scrollHeight;
 }
 
 function installGlobalErrorHandlers() {
