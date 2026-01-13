@@ -234,13 +234,14 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
     if (loadingShell) {
       loadingShell.classList.remove("is-hidden");
       loadingDismissed = false;
-      loadingShownAt = null;
-      if (loadingHideTimeout !== null) {
-        window.clearTimeout(loadingHideTimeout);
-        loadingHideTimeout = null;
+      if (!loadingShownAt) {
+        loadingShownAt = Date.now();
       }
+      if (!loadedShownAt) {
+        loadedShownAt = Date.now();
+      }
+      scheduleLoadingHide(loadingShell);
     }
-    loadedShownAt = null;
   } else {
     label.textContent = "Preparing the star map…";
     progress.style.width = "0%";
