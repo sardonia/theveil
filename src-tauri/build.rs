@@ -4,7 +4,10 @@ use std::path::PathBuf;
 
 fn main() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let resources_dir = manifest_dir.join("resources");
+    let project_dir = manifest_dir
+        .parent()
+        .expect("CARGO_MANIFEST_DIR should have a parent");
+    let resources_dir = project_dir.join("resources");
     let resource_path = resources_dir.join("veil.gguf");
 
     if !resource_path.exists() {
