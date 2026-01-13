@@ -22,7 +22,7 @@ function hideOverlay() {
   loadingDismissed = true;
 }
 
-function scheduleLoadingHide(loadingShell: HTMLElement) {
+function scheduleLoadingHide() {
   if (loadingHideTimeout !== null) {
     window.clearTimeout(loadingHideTimeout);
   }
@@ -218,7 +218,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
       if (!loadedShownAt) {
         loadedShownAt = Date.now();
       }
-      scheduleLoadingHide(loadingShell);
+      scheduleLoadingHide();
     }
     const loadedKey = `${status.modelPath}|${status.modelSizeBytes}`;
     if (isDebugEnabled() && loadedKey !== lastLoadedKey) {
@@ -245,7 +245,7 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
       if (!loadedShownAt) {
         loadedShownAt = Date.now();
       }
-      scheduleLoadingHide(loadingShell);
+      scheduleLoadingHide();
     }
   } else {
     label.textContent = "Preparing the star map…";
