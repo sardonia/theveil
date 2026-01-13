@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DEFAULT_PROFILE } from "./domain/constants";
 import type { AppState, ModelStatus, ProfileDraft } from "./domain/types";
 import { CommandBus } from "./state/commands";
@@ -21,6 +22,7 @@ import {
 import { initStarfield } from "./ui/starfield";
 import {
   debugLog,
+  debugModelLog,
   initDebug,
   isDebugEnabled,
   isDebugOverlayVisible,
@@ -63,9 +65,11 @@ function initModel() {
   };
 
   scheduleFallback("Model initialization timed out.");
+  debugModelLog("log", "model:init:start");
   invoke<ModelStatus>("init_model")
     .then((status) => {
       commandBus.execute({ type: "ModelStatusUpdated", status });
+      debugModelLog("log", "model:init:response", status);
       if (status.status === "loaded" || status.status === "error") {
         clearFallback();
       } else {
@@ -75,6 +79,7 @@ function initModel() {
     .catch((error) => {
       clearFallback();
       debugLog("warn", "initModel:failed", error);
+      debugModelLog("error", "model:init:failed", error);
       commandBus.execute({
         type: "ModelStatusUpdated",
         status: { status: "error", message: "Model initialization failed." },
@@ -83,6 +88,7 @@ function initModel() {
 
   listen<ModelStatus>("model:status", (event) => {
     commandBus.execute({ type: "ModelStatusUpdated", status: event.payload });
+    debugModelLog("log", "model:status:update", event.payload);
     if (event.payload.status === "loaded" || event.payload.status === "error") {
       clearFallback();
     } else {
@@ -93,6 +99,7 @@ function initModel() {
 
 function initReadingStream() {
   let buffer = "";
+  let chunkCount = 0;
   let flushHandle: number | null = null;
 
   const flush = () => {
@@ -108,18 +115,47 @@ function initReadingStream() {
     flushHandle = window.setTimeout(flush, 33);
   };
 
-  listen<StreamEvent>("reading:stream", (event) => {
-    if (event.payload.kind === "start") {
+  const appWindow = getCurrentWindow();
+  const handleStreamEvent = (payload: StreamEvent) => {
+    if (payload.kind === "start") {
       buffer = "";
+      chunkCount = 0;
       resetReadingStream();
+      debugModelLog("log", "reading:stream:start");
       return;
     }
-    if (event.payload.kind === "chunk") {
-      buffer += event.payload.chunk;
+    if (payload.kind === "chunk") {
+      buffer += payload.chunk;
+      chunkCount += 1;
+      debugModelLog("log", "reading:stream:chunk", {
+        index: chunkCount,
+        length: payload.chunk.length,
+        chunk: payload.chunk,
+      });
       scheduleFlush();
       return;
     }
+    debugModelLog("log", "reading:stream:end", { chunks: chunkCount });
     flush();
+  };
+
+  appWindow
+    .listen<StreamEvent>("reading:stream", (event) => {
+      handleStreamEvent(event.payload);
+    })
+    .then(() => {
+      debugLog("log", "initReadingStream:ready", { target: appWindow.label });
+      debugModelLog("log", "reading:stream:listener:ready", { target: appWindow.label });
+    })
+    .catch((error) => {
+      debugLog("error", "initReadingStream:failed", error);
+      debugModelLog("error", "reading:stream:listener:failed", error);
+    });
+
+  window.addEventListener("reading:stream-local", (event) => {
+    const detail = (event as CustomEvent<StreamEvent>).detail;
+    debugModelLog("log", "reading:stream:local", { kind: detail.kind });
+    handleStreamEvent(detail);
   });
 }
 
@@ -317,8 +353,12 @@ window.addEventListener("DOMContentLoaded", () => {
     route: store.getState().ui.route,
   });
 
-  initModel();
-  debugLog("log", "initModel:started");
+  requestAnimationFrame(() => {
+    window.setTimeout(() => {
+      initModel();
+      debugLog("log", "initModel:started");
+    }, 0);
+  });
   initReadingStream();
   debugLog("log", "initReadingStream:started");
 
