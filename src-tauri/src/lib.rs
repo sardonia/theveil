@@ -394,6 +394,9 @@ fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(resource_dir) = app.path().resource_dir() {
         candidates.push(resource_dir.join("veil.gguf"));
     }
+    if let Ok(app_data_dir) = app.path().app_data_dir() {
+        candidates.push(app_data_dir.join("veil.gguf"));
+    }
     if let Ok(current_dir) = std::env::current_dir() {
         candidates.push(current_dir.join("src-tauri/resources/veil.gguf"));
         candidates.push(current_dir.join("resources/veil.gguf"));

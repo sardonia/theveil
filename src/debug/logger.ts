@@ -189,6 +189,7 @@ function installOverlay() {
   overlayEl.style.backdropFilter = "blur(10px)";
   overlayEl.style.boxShadow = "0 18px 50px rgba(0,0,0,0.45)";
   overlayEl.style.zIndex = "999999";
+  overlayEl.style.pointerEvents = "auto";
 
   const header = document.createElement("div");
   header.style.display = "flex";
@@ -291,6 +292,7 @@ function buildPane(title: string) {
   pane.style.border = "1px solid rgba(255,255,255,0.12)";
   pane.style.borderRadius = "10px";
   pane.style.overflow = "hidden";
+  pane.style.overscrollBehavior = "contain";
   pane.style.background = "rgba(10, 12, 26, 0.62)";
 
   const header = document.createElement("div");
@@ -310,6 +312,7 @@ function buildPane(title: string) {
   list.style.overflowX = "auto";
   list.style.overflowY = "auto";
   list.style.scrollbarGutter = "stable both-edges";
+  list.style.overscrollBehavior = "contain";
   list.style.whiteSpace = "pre";
 
   pane.appendChild(header);
