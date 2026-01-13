@@ -76,17 +76,17 @@ export function setDebugEnabled(enabled: boolean) {
   }
 
   if (enabled) {
-    initDebug();
+    initDebug(true);
     setOverlayVisible(true);
   } else {
     setOverlayVisible(false);
   }
 }
 
-export function initDebug() {
+export function initDebug(force = false) {
   if (installed) return;
+  if (!force && !isDebugEnabled()) return;
   installed = true;
-  if (!isDebugEnabled()) return;
 
   installOverlay();
   // Keep the overlay hidden by default; it can be enabled via the UI toggle
