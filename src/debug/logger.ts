@@ -171,6 +171,30 @@ function createEntryElement(entry: OverlayEntry) {
   return element;
 }
 
+async function copyTextToClipboard(text: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // fall through to legacy approach
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 function installOverlay() {
   overlayEl = document.createElement("div");
   overlayEl.id = "veil-debug-overlay";
@@ -181,8 +205,10 @@ function installOverlay() {
   // (like the "Reveal my reading" button) that tend to live near the bottom.
   overlayEl.style.top = "12px";
   overlayEl.style.bottom = "auto";
+  overlayEl.style.height = "35vh";
   overlayEl.style.maxHeight = "35vh";
   overlayEl.style.display = "none";
+  overlayEl.style.flexDirection = "column";
   overlayEl.style.background = "rgba(10, 12, 26, 0.88)";
   overlayEl.style.border = "1px solid rgba(255,255,255,0.16)";
   overlayEl.style.borderRadius = "12px";
@@ -190,6 +216,7 @@ function installOverlay() {
   overlayEl.style.boxShadow = "0 18px 50px rgba(0,0,0,0.45)";
   overlayEl.style.zIndex = "999999";
   overlayEl.style.pointerEvents = "auto";
+  overlayEl.style.overflow = "hidden";
 
   const header = document.createElement("div");
   header.style.display = "flex";
@@ -269,7 +296,9 @@ function buildSplitPane() {
   body.style.gridTemplateColumns = "1fr 1fr";
   body.style.gap = "8px";
   body.style.padding = "8px";
-  body.style.maxHeight = "calc(35vh - 44px)";
+  body.style.flex = "1";
+  body.style.minHeight = "0";
+  body.style.overflow = "hidden";
 
   const { pane: generalPane, list: generalList } = buildPane("Interaction log");
   const { pane: modelPane, list: modelList } = buildPane("Model lifecycle");
@@ -296,7 +325,9 @@ function buildPane(title: string) {
   pane.style.background = "rgba(10, 12, 26, 0.62)";
 
   const header = document.createElement("div");
-  header.textContent = title;
+  header.style.display = "flex";
+  header.style.alignItems = "center";
+  header.style.justifyContent = "space-between";
   header.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
   header.style.fontSize = "11px";
   header.style.textTransform = "uppercase";
@@ -305,6 +336,21 @@ function buildPane(title: string) {
   header.style.padding = "6px 10px";
   header.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
   header.style.background = "rgba(10, 12, 26, 0.9)";
+
+  const titleEl = document.createElement("div");
+  titleEl.textContent = title;
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.textContent = "Copy";
+  copyBtn.style.fontFamily = "inherit";
+  copyBtn.style.fontSize = "11px";
+  copyBtn.style.padding = "2px 6px";
+  copyBtn.style.borderRadius = "6px";
+  copyBtn.style.border = "1px solid rgba(255,255,255,0.18)";
+  copyBtn.style.background = "rgba(255,255,255,0.06)";
+  copyBtn.style.color = "rgba(255,255,255,0.82)";
+  copyBtn.style.cursor = "pointer";
 
   const list = document.createElement("div");
   list.style.flex = "1";
@@ -315,6 +361,12 @@ function buildPane(title: string) {
   list.style.overscrollBehavior = "contain";
   list.style.whiteSpace = "pre";
 
+  copyBtn.addEventListener("click", () => {
+    void copyTextToClipboard(list.textContent ?? "");
+  });
+
+  header.appendChild(titleEl);
+  header.appendChild(copyBtn);
   pane.appendChild(header);
   pane.appendChild(list);
   return { pane, list };
@@ -323,7 +375,7 @@ function buildPane(title: string) {
 function setOverlayVisible(visible: boolean) {
   overlayVisible = visible;
   if (!overlayEl) return;
-  overlayEl.style.display = visible ? "block" : "none";
+  overlayEl.style.display = visible ? "flex" : "none";
   if (visible) {
     renderBufferedLogs();
   }
