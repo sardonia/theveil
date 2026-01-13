@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DEFAULT_PROFILE } from "./domain/constants";
 import type { AppState, ModelStatus, ProfileDraft } from "./domain/types";
 import { CommandBus } from "./state/commands";
@@ -108,19 +109,27 @@ function initReadingStream() {
     flushHandle = window.setTimeout(flush, 33);
   };
 
-  listen<StreamEvent>("reading:stream", (event) => {
-    if (event.payload.kind === "start") {
-      buffer = "";
-      resetReadingStream();
-      return;
-    }
-    if (event.payload.kind === "chunk") {
-      buffer += event.payload.chunk;
-      scheduleFlush();
-      return;
-    }
-    flush();
-  });
+  const appWindow = getCurrentWindow();
+  appWindow
+    .listen<StreamEvent>("reading:stream", (event) => {
+      if (event.payload.kind === "start") {
+        buffer = "";
+        resetReadingStream();
+        return;
+      }
+      if (event.payload.kind === "chunk") {
+        buffer += event.payload.chunk;
+        scheduleFlush();
+        return;
+      }
+      flush();
+    })
+    .then(() => {
+      debugLog("log", "initReadingStream:ready", { target: appWindow.label });
+    })
+    .catch((error) => {
+      debugLog("error", "initReadingStream:failed", error);
+    });
 }
 
 function bindForm() {
