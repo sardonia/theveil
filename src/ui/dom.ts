@@ -10,6 +10,16 @@ let loadingShownAt: number | null = null;
 let loadingHideTimeout: number | null = null;
 let loadedShownAt: number | null = null;
 let lastLoadedKey: string | null = null;
+let loadingDismissed = false;
+
+function hideOverlay() {
+  const loadingShell = document.querySelector<HTMLElement>("#app-loading");
+  if (!loadingShell) return;
+  loadingShell.classList.add("is-hidden");
+  loadingHideTimeout = null;
+  loadingShownAt = null;
+  loadingDismissed = true;
+}
 
 function scheduleLoadingHide(loadingShell: HTMLElement) {
   if (loadingHideTimeout !== null) {
@@ -22,12 +32,6 @@ function scheduleLoadingHide(loadingShell: HTMLElement) {
     MIN_LOADING_MS - elapsed,
     MIN_LOADED_MS - elapsedLoaded
   );
-  if (remaining === 0) {
-    loadingShell.classList.add("is-hidden");
-    loadingHideTimeout = null;
-    loadingShownAt = null;
-    loadingDismissed = true;
-  };
   if (remaining === 0) {
     hideOverlay();
     return;
