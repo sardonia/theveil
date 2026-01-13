@@ -400,7 +400,7 @@ fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(app_data_dir) = app.path().app_data_dir() {
         candidates.push(app_data_dir.join("veil.gguf"));
     }
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, dev))]
     {
         candidates.push(
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/veil.gguf"),
