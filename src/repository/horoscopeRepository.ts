@@ -71,6 +71,9 @@ export class HoroscopeRepository {
 
 async function emitStreamEvent(event: StreamEvent) {
   await emit("reading:stream", event);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("reading:stream-local", { detail: event }));
+  }
 }
 
 async function streamMessage(message: string) {

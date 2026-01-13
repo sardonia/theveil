@@ -287,6 +287,7 @@ function buildPane(title: string) {
   pane.style.display = "flex";
   pane.style.flexDirection = "column";
   pane.style.minWidth = "0";
+  pane.style.minHeight = "0";
   pane.style.border = "1px solid rgba(255,255,255,0.12)";
   pane.style.borderRadius = "10px";
   pane.style.overflow = "hidden";
@@ -305,6 +306,7 @@ function buildPane(title: string) {
 
   const list = document.createElement("div");
   list.style.flex = "1";
+  list.style.minHeight = "0";
   list.style.overflowX = "auto";
   list.style.overflowY = "auto";
   list.style.scrollbarGutter = "stable both-edges";

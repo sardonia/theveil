@@ -116,28 +116,32 @@ function initReadingStream() {
   };
 
   const appWindow = getCurrentWindow();
+  const handleStreamEvent = (payload: StreamEvent) => {
+    if (payload.kind === "start") {
+      buffer = "";
+      chunkCount = 0;
+      resetReadingStream();
+      debugModelLog("log", "reading:stream:start");
+      return;
+    }
+    if (payload.kind === "chunk") {
+      buffer += payload.chunk;
+      chunkCount += 1;
+      debugModelLog("log", "reading:stream:chunk", {
+        index: chunkCount,
+        length: payload.chunk.length,
+        chunk: payload.chunk,
+      });
+      scheduleFlush();
+      return;
+    }
+    debugModelLog("log", "reading:stream:end", { chunks: chunkCount });
+    flush();
+  };
+
   appWindow
     .listen<StreamEvent>("reading:stream", (event) => {
-      if (event.payload.kind === "start") {
-        buffer = "";
-        chunkCount = 0;
-        resetReadingStream();
-        debugModelLog("log", "reading:stream:start");
-        return;
-      }
-      if (event.payload.kind === "chunk") {
-        buffer += event.payload.chunk;
-        chunkCount += 1;
-        debugModelLog("log", "reading:stream:chunk", {
-          index: chunkCount,
-          length: event.payload.chunk.length,
-          chunk: event.payload.chunk,
-        });
-        scheduleFlush();
-        return;
-      }
-      debugModelLog("log", "reading:stream:end", { chunks: chunkCount });
-      flush();
+      handleStreamEvent(event.payload);
     })
     .then(() => {
       debugLog("log", "initReadingStream:ready", { target: appWindow.label });
@@ -147,6 +151,12 @@ function initReadingStream() {
       debugLog("error", "initReadingStream:failed", error);
       debugModelLog("error", "reading:stream:listener:failed", error);
     });
+
+  window.addEventListener("reading:stream-local", (event) => {
+    const detail = (event as CustomEvent<StreamEvent>).detail;
+    debugModelLog("log", "reading:stream:local", { kind: detail.kind });
+    handleStreamEvent(detail);
+  });
 }
 
 function bindForm() {
