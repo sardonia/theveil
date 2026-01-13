@@ -353,8 +353,12 @@ window.addEventListener("DOMContentLoaded", () => {
     route: store.getState().ui.route,
   });
 
-  initModel();
-  debugLog("log", "initModel:started");
+  requestAnimationFrame(() => {
+    window.setTimeout(() => {
+      initModel();
+      debugLog("log", "initModel:started");
+    }, 0);
+  });
   initReadingStream();
   debugLog("log", "initReadingStream:started");
 

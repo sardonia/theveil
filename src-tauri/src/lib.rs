@@ -391,11 +391,20 @@ fn parse_reading_json(json: String, source: ReadingSource) -> Result<Reading, St
 
 fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
     let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(override_path) = std::env::var("VEIL_MODEL_PATH") {
+        candidates.push(PathBuf::from(override_path));
+    }
     if let Ok(resource_dir) = app.path().resource_dir() {
         candidates.push(resource_dir.join("veil.gguf"));
     }
     if let Ok(app_data_dir) = app.path().app_data_dir() {
         candidates.push(app_data_dir.join("veil.gguf"));
+    }
+    #[cfg(debug_assertions)]
+    {
+        candidates.push(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/veil.gguf"),
+        );
     }
     if let Ok(current_dir) = std::env::current_dir() {
         candidates.push(current_dir.join("src-tauri/resources/veil.gguf"));
