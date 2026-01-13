@@ -406,10 +406,6 @@ fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/veil.gguf"),
         );
     }
-    if let Ok(current_dir) = std::env::current_dir() {
-        candidates.push(current_dir.join("src-tauri/resources/veil.gguf"));
-        candidates.push(current_dir.join("resources/veil.gguf"));
-    }
 
     for candidate in &candidates {
         if candidate.exists() {
