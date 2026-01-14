@@ -413,6 +413,7 @@ fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
         if let Some(project_dir) = manifest_dir.parent() {
             candidates.push(project_dir.join("resources/veil.gguf"));
         }
+        candidates.push(manifest_dir.join("resources/veil.gguf"));
     }
 
     for candidate in &candidates {
