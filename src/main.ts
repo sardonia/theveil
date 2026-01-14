@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DEFAULT_PROFILE } from "./domain/constants";
 import type { AppState, ModelStatus, ProfileDraft } from "./domain/types";
 import { CommandBus } from "./state/commands";
