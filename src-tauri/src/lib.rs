@@ -406,6 +406,10 @@ fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
             "resource_dir".to_string(),
             resource_dir.join("veil.gguf"),
         ));
+        candidates.push((
+            "resource_dir/resources".to_string(),
+            resource_dir.join("resources/veil.gguf"),
+        ));
     }
     if let Ok(app_data_dir) = app.path().app_data_dir() {
         candidates.push((
