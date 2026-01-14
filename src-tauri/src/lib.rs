@@ -397,26 +397,38 @@ fn parse_reading_json(json: String, source: ReadingSource) -> Result<Reading, St
 }
 
 fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let mut candidates: Vec<PathBuf> = Vec::new();
+    let mut candidates: Vec<(String, PathBuf)> = Vec::new();
     if let Ok(override_path) = std::env::var("VEIL_MODEL_PATH") {
-        candidates.push(PathBuf::from(override_path));
+        candidates.push(("VEIL_MODEL_PATH".to_string(), PathBuf::from(override_path)));
     }
     if let Ok(resource_dir) = app.path().resource_dir() {
-        candidates.push(resource_dir.join("veil.gguf"));
+        candidates.push((
+            "resource_dir".to_string(),
+            resource_dir.join("veil.gguf"),
+        ));
     }
     if let Ok(app_data_dir) = app.path().app_data_dir() {
-        candidates.push(app_data_dir.join("veil.gguf"));
+        candidates.push((
+            "app_data_dir".to_string(),
+            app_data_dir.join("veil.gguf"),
+        ));
     }
     #[cfg(any(debug_assertions, dev))]
     {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         if let Some(project_dir) = manifest_dir.parent() {
-            candidates.push(project_dir.join("resources/veil.gguf"));
+            candidates.push((
+                "project/resources".to_string(),
+                project_dir.join("resources/veil.gguf"),
+            ));
         }
-        candidates.push(manifest_dir.join("resources/veil.gguf"));
+        candidates.push((
+            "src-tauri/resources".to_string(),
+            manifest_dir.join("resources/veil.gguf"),
+        ));
     }
 
-    for candidate in &candidates {
+    for (_, candidate) in &candidates {
         if candidate.exists() {
             if candidate.is_file() {
                 return Ok(candidate.clone());
@@ -430,7 +442,19 @@ fn resolve_model_path(app: &AppHandle) -> Result<PathBuf, String> {
 
     let searched = candidates
         .iter()
-        .map(|path| path.display().to_string())
+        .map(|(label, path)| {
+            let status = match std::fs::metadata(path) {
+                Ok(metadata) => {
+                    if metadata.is_file() {
+                        format!("file, {} bytes", metadata.len())
+                    } else {
+                        "exists, not a file".to_string()
+                    }
+                }
+                Err(_) => "missing".to_string(),
+            };
+            format!("{}: {} ({})", label, path.display(), status)
+        })
         .collect::<Vec<_>>()
         .join(", ");
     Err(format!(
