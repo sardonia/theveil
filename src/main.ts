@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DEFAULT_PROFILE } from "./domain/constants";
 import type { AppState, ModelStatus, ProfileDraft } from "./domain/types";
 import { CommandBus } from "./state/commands";
@@ -115,7 +114,6 @@ function initReadingStream() {
     flushHandle = window.setTimeout(flush, 33);
   };
 
-  const appWindow = getCurrentWindow();
   const handleStreamEvent = (payload: StreamEvent) => {
     if (payload.kind === "start") {
       buffer = "";
@@ -139,13 +137,12 @@ function initReadingStream() {
     flush();
   };
 
-  appWindow
-    .listen<StreamEvent>("reading:stream", (event) => {
-      handleStreamEvent(event.payload);
-    })
+  listen<StreamEvent>("reading:stream", (event) => {
+    handleStreamEvent(event.payload);
+  })
     .then(() => {
-      debugLog("log", "initReadingStream:ready", { target: appWindow.label });
-      debugModelLog("log", "reading:stream:listener:ready", { target: appWindow.label });
+      debugLog("log", "initReadingStream:ready", { target: "app" });
+      debugModelLog("log", "reading:stream:listener:ready", { target: "app" });
     })
     .catch((error) => {
       debugLog("error", "initReadingStream:failed", error);
