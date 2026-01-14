@@ -105,12 +105,12 @@ impl HoroscopeModelBackend for StubBackend {
 
 pub struct EmbeddedBackend {
     model_path: PathBuf,
-    _model_bytes: Arc<Vec<u8>>,
+    model_size_bytes: u64,
 }
 
 impl EmbeddedBackend {
     fn new(model_path: PathBuf) -> Result<Self, String> {
-        let bytes = std::fs::read(&model_path).map_err(|error| match error.kind() {
+        let file = std::fs::File::open(&model_path).map_err(|error| match error.kind() {
             std::io::ErrorKind::NotFound => {
                 format!("Model file {} is missing.", model_path.display())
             }
@@ -119,14 +119,21 @@ impl EmbeddedBackend {
                 model_path.display()
             ),
             _ => format!(
-                "Failed to load model at {}: {}",
+                "Failed to open model at {}: {}",
                 model_path.display(),
                 error
             ),
         })?;
+        let metadata = file.metadata().map_err(|error| {
+            format!(
+                "Failed to read model metadata at {}: {}",
+                model_path.display(),
+                error
+            )
+        })?;
         Ok(Self {
             model_path,
-            _model_bytes: Arc::new(bytes),
+            model_size_bytes: metadata.len(),
         })
     }
 }
@@ -258,7 +265,7 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
             .and_then(|model_path| EmbeddedBackend::new(model_path))
         {
             Ok(backend) => {
-                let model_size_bytes = backend._model_bytes.len() as u64;
+                let model_size_bytes = backend.model_size_bytes;
                 let model_size_mb = (model_size_bytes as f32) / (1024.0 * 1024.0);
                 let model_path = backend.model_path.display().to_string();
                 state_clone.set_backend(Arc::new(backend));
