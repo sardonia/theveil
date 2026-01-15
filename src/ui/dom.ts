@@ -1,5 +1,5 @@
 import { MOODS, PERSONALITIES } from "../domain/constants";
-import type { AppState, ProfileDraft, Reading } from "../domain/types";
+import type { AppState, DashboardPayload, ProfileDraft } from "../domain/types";
 import { zodiacSign } from "../domain/zodiac";
 import { debugLog, isDebugEnabled } from "../debug/logger";
 
@@ -11,7 +11,12 @@ let loadingHideTimeout: number | null = null;
 let loadedShownAt: number | null = null;
 let lastLoadedKey: string | null = null;
 let loadingDismissed = false;
-let readingStreamBuffer = "";
+const ratingLabels: Array<keyof DashboardPayload["today"]["ratings"]> = [
+  "love",
+  "work",
+  "money",
+  "health",
+];
 
 function hideOverlay() {
   const loadingShell = document.querySelector<HTMLElement>("#app-loading");
@@ -267,105 +272,220 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
   }
 }
 
-export function renderReading(reading: Reading | null, profile: ProfileDraft | null) {
-  const dateEl = document.querySelector<HTMLElement>("#reading-date");
-  const titleEl = document.querySelector<HTMLElement>("#reading-title-text");
-  const subtitleEl = document.querySelector<HTMLElement>("#reading-subtitle");
-  const sourceEl = document.querySelector<HTMLElement>("#reading-source");
-  const messageEl = document.querySelector<HTMLElement>(".reading__message");
-  const themesEl = document.querySelector<HTMLUListElement>("#reading-themes");
-  const affirmationEl = document.querySelector<HTMLElement>("#reading-affirmation");
-  const colorEl = document.querySelector<HTMLElement>("#reading-color");
-  const numberEl = document.querySelector<HTMLElement>("#reading-number");
+export function renderDashboard(
+  payload: DashboardPayload | null,
+  profile: ProfileDraft | null,
+  error: string | null
+) {
+  const dateEl = document.querySelector<HTMLElement>("#dashboard-date");
+  const headlineEl = document.querySelector<HTMLElement>("#dashboard-headline");
+  const subheadEl = document.querySelector<HTMLElement>("#dashboard-subhead");
+  const signatureEl = document.querySelector<HTMLElement>("#dashboard-signature");
+  const themeEl = document.querySelector<HTMLElement>("#dashboard-theme");
+  const energyEl = document.querySelector<HTMLElement>("#dashboard-energy");
+  const bestHoursEl = document.querySelector<HTMLElement>("#dashboard-best-hours");
+  const luckyEl = document.querySelector<HTMLElement>("#dashboard-lucky");
+  const doEl = document.querySelector<HTMLElement>("#dashboard-do");
+  const dontEl = document.querySelector<HTMLElement>("#dashboard-dont");
+  const sectionsEl = document.querySelector<HTMLElement>("#dashboard-sections");
+  const ratingsEl = document.querySelector<HTMLElement>("#dashboard-ratings");
 
-  if (!reading) {
-    if (messageEl) messageEl.textContent = "";
-    if (themesEl) themesEl.innerHTML = "";
-    if (sourceEl) sourceEl.textContent = "";
+  const cosmicMoonEl = document.querySelector<HTMLElement>("#cosmic-moon");
+  const cosmicTransitsEl = document.querySelector<HTMLElement>("#cosmic-transits");
+  const cosmicAffectsEl = document.querySelector<HTMLElement>("#cosmic-affects");
+
+  const compBestEl = document.querySelector<HTMLElement>("#compatibility-best");
+  const compHandleEl = document.querySelector<HTMLElement>("#compatibility-handle");
+  const compConflictEl = document.querySelector<HTMLElement>("#compatibility-conflict");
+  const compAffectionEl = document.querySelector<HTMLElement>("#compatibility-affection");
+
+  const journalPromptEl = document.querySelector<HTMLElement>("#journal-prompt");
+  const journalStartersEl = document.querySelector<HTMLElement>("#journal-starters");
+  const journalMantraEl = document.querySelector<HTMLElement>("#journal-mantra");
+  const journalRitualEl = document.querySelector<HTMLElement>("#journal-ritual");
+  const journalBestDayEl = document.querySelector<HTMLElement>("#journal-best-day");
+  const journalBestReasonEl = document.querySelector<HTMLElement>("#journal-best-reason");
+
+  const weekArcEl = document.querySelector<HTMLElement>("#weekly-arc");
+  const weekOpportunityEl = document.querySelector<HTMLElement>("#weekly-opportunity");
+  const weekCautionEl = document.querySelector<HTMLElement>("#weekly-caution");
+  const weekDecisionsEl = document.querySelector<HTMLElement>("#weekly-best-decisions");
+  const weekConversationsEl = document.querySelector<HTMLElement>("#weekly-best-conversations");
+  const weekRestEl = document.querySelector<HTMLElement>("#weekly-best-rest");
+
+  const monthThemeEl = document.querySelector<HTMLElement>("#monthly-theme");
+  const monthDatesEl = document.querySelector<HTMLElement>("#monthly-dates");
+  const monthNewMoonEl = document.querySelector<HTMLElement>("#monthly-newmoon");
+  const monthFullMoonEl = document.querySelector<HTMLElement>("#monthly-fullmoon");
+  const monthOneThingEl = document.querySelector<HTMLElement>("#monthly-onething");
+
+  const yearHeadlineEl = document.querySelector<HTMLElement>("#year-headline");
+  const yearQuartersEl = document.querySelector<HTMLElement>("#year-quarters");
+  const yearPowerEl = document.querySelector<HTMLElement>("#year-power");
+  const yearChallengeEl = document.querySelector<HTMLElement>("#year-challenge");
+
+  const errorEl = document.querySelector<HTMLElement>("#dashboard-error");
+
+  if (!payload) {
+    if (headlineEl) headlineEl.textContent = "";
+    if (subheadEl) subheadEl.textContent = "";
+    if (sectionsEl) sectionsEl.innerHTML = "";
+    if (ratingsEl) ratingsEl.innerHTML = "";
+    if (errorEl) errorEl.textContent = error ?? "";
     return;
   }
 
-  const formattedDate = new Date(reading.date).toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-
-  if (dateEl) dateEl.textContent = formattedDate;
-  if (titleEl) titleEl.textContent = reading.title;
-  if (subtitleEl) {
-    subtitleEl.textContent = profile
+  if (dateEl) dateEl.textContent = payload.meta.localeDateLabel;
+  if (headlineEl) headlineEl.textContent = payload.today.headline;
+  if (subheadEl) subheadEl.textContent = payload.today.subhead;
+  if (signatureEl) {
+    signatureEl.textContent = profile
       ? `${profile.name}, ${zodiacSign(profile.birthdate)}`
-      : `Sign: ${reading.sign}`;
+      : `${payload.meta.name}, ${payload.meta.sign}`;
   }
-  if (sourceEl) {
-    sourceEl.textContent = `Runtime: ${reading.source === "model" ? "Model" : "Stub"}`;
+  if (themeEl) themeEl.textContent = payload.today.theme;
+  if (energyEl) energyEl.textContent = `${payload.today.energyScore}/100`;
+  if (bestHoursEl) {
+    bestHoursEl.textContent = payload.today.bestHours
+      .map((window) => `${window.start}–${window.end}`)
+      .join(" · ");
   }
-  const fallbackMessage = reading.message.trim().length > 0
-    ? reading.message
-    : readingStreamBuffer.trim();
-  if (messageEl) messageEl.textContent = fallbackMessage;
-  if (themesEl) {
-    themesEl.innerHTML = reading.themes.map((theme) => `<li>${theme}</li>`).join("");
+  if (luckyEl) {
+    luckyEl.textContent = `${payload.today.lucky.color} · ${payload.today.lucky.number} · ${payload.today.lucky.symbol}`;
   }
-  if (affirmationEl) affirmationEl.textContent = reading.affirmation;
-  if (colorEl) colorEl.textContent = reading.luckyColor;
-  if (numberEl) numberEl.textContent = reading.luckyNumber.toString();
+  if (doEl) doEl.textContent = payload.today.doDont.do;
+  if (dontEl) dontEl.textContent = payload.today.doDont.dont;
+
+  if (sectionsEl) {
+    sectionsEl.innerHTML = payload.today.sections
+      .map(
+        (section) => `
+          <div class="dashboard-section">
+            <h4>${section.title}</h4>
+            <p>${section.body}</p>
+          </div>
+        `
+      )
+      .join("");
+  }
+
+  if (ratingsEl) {
+    ratingsEl.innerHTML = ratingLabels
+      .map((label) => {
+        const value = payload.today.ratings[label];
+        return `
+          <div class="rating">
+            <span class="rating__label">${label}</span>
+            <span class="rating__stars">${renderStars(value)}</span>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  if (cosmicMoonEl) {
+    cosmicMoonEl.textContent = `${payload.cosmicWeather.moon.phase} Moon in ${payload.cosmicWeather.moon.sign}`;
+  }
+  if (cosmicTransitsEl) {
+    cosmicTransitsEl.innerHTML = payload.cosmicWeather.transits
+      .map(
+        (transit) => `
+          <div class="pill pill--${transit.tone}">
+            <strong>${transit.title}</strong>
+            <span>${transit.meaning}</span>
+          </div>
+        `
+      )
+      .join("");
+  }
+  if (cosmicAffectsEl) cosmicAffectsEl.textContent = payload.cosmicWeather.affectsToday;
+
+  if (compBestEl) compBestEl.textContent = payload.compatibility.bestFlowWith.join(", ");
+  if (compHandleEl) compHandleEl.textContent = payload.compatibility.handleGentlyWith.join(", ");
+  if (compConflictEl) compConflictEl.textContent = payload.compatibility.tips.conflict;
+  if (compAffectionEl) compAffectionEl.textContent = payload.compatibility.tips.affection;
+
+  if (journalPromptEl) journalPromptEl.textContent = payload.journalRitual.prompt;
+  if (journalStartersEl) {
+    journalStartersEl.innerHTML = payload.journalRitual.starters
+      .map((starter) => `<button type="button" class="chip">${starter}</button>`)
+      .join("");
+  }
+  if (journalMantraEl) journalMantraEl.textContent = payload.journalRitual.mantra;
+  if (journalRitualEl) journalRitualEl.textContent = payload.journalRitual.ritual;
+  if (journalBestDayEl) {
+    journalBestDayEl.textContent = payload.journalRitual.bestDayForDecisions.dayLabel;
+  }
+  if (journalBestReasonEl) {
+    journalBestReasonEl.textContent = payload.journalRitual.bestDayForDecisions.reason;
+  }
+
+  if (weekArcEl) {
+    weekArcEl.innerHTML = `
+      <div><strong>Start:</strong> ${payload.week.arc.start}</div>
+      <div><strong>Midweek:</strong> ${payload.week.arc.midweek}</div>
+      <div><strong>Weekend:</strong> ${payload.week.arc.weekend}</div>
+    `;
+  }
+  if (weekOpportunityEl) weekOpportunityEl.textContent = payload.week.keyOpportunity;
+  if (weekCautionEl) weekCautionEl.textContent = payload.week.keyCaution;
+  if (weekDecisionsEl) weekDecisionsEl.textContent = payload.week.bestDayFor.decisions;
+  if (weekConversationsEl) weekConversationsEl.textContent = payload.week.bestDayFor.conversations;
+  if (weekRestEl) weekRestEl.textContent = payload.week.bestDayFor.rest;
+
+  if (monthThemeEl) monthThemeEl.textContent = payload.month.theme;
+  if (monthDatesEl) {
+    monthDatesEl.innerHTML = payload.month.keyDates
+      .map(
+        (date) => `
+          <li>
+            <strong>${date.dateLabel} — ${date.title}</strong>
+            <span>${date.note}</span>
+          </li>
+        `
+      )
+      .join("");
+  }
+  if (monthNewMoonEl) {
+    monthNewMoonEl.textContent = `${payload.month.newMoon.dateLabel}: ${payload.month.newMoon.intention}`;
+  }
+  if (monthFullMoonEl) {
+    monthFullMoonEl.textContent = `${payload.month.fullMoon.dateLabel}: ${payload.month.fullMoon.release}`;
+  }
+  if (monthOneThingEl) monthOneThingEl.textContent = payload.month.oneThing;
+
+  if (yearHeadlineEl) yearHeadlineEl.textContent = payload.year.headline;
+  if (yearQuartersEl) {
+    yearQuartersEl.innerHTML = payload.year.quarters
+      .map((quarter) => `<li><strong>${quarter.label}</strong> ${quarter.focus}</li>`)
+      .join("");
+  }
+  if (yearPowerEl) yearPowerEl.textContent = payload.year.powerMonths.join(", ");
+  if (yearChallengeEl) {
+    yearChallengeEl.textContent = `${payload.year.challengeMonth.month}: ${payload.year.challengeMonth.guidance}`;
+  }
+
+  if (errorEl) errorEl.textContent = error ?? "";
 }
 
 export function renderBusy(isGenerating: boolean) {
-  const loading = document.querySelector<HTMLElement>("#reading-loading");
-  const body = document.querySelector<HTMLElement>("#reading-body");
+  const loading = document.querySelector<HTMLElement>("#dashboard-loading");
+  const body = document.querySelector<HTMLElement>("#dashboard-body");
   const regenerate = document.querySelector<HTMLButtonElement>("#regenerate");
   const edit = document.querySelector<HTMLButtonElement>("#edit-profile");
-  const copy = document.querySelector<HTMLButtonElement>("#copy-reading");
+  const save = document.querySelector<HTMLButtonElement>("#save-reading");
+  const share = document.querySelector<HTMLButtonElement>("#share-reading");
 
   if (loading) {
     loading.hidden = !isGenerating;
   }
   if (body) {
-    body.style.opacity = isGenerating ? "0.2" : "1";
+    body.classList.toggle("is-loading", isGenerating);
   }
   if (regenerate) regenerate.disabled = isGenerating;
   if (edit) edit.disabled = isGenerating;
-  if (copy) copy.disabled = isGenerating;
-}
-
-function getStreamTargets() {
-  const targets: HTMLElement[] = [];
-  const loadingStream = document.querySelector<HTMLElement>("#reading-stream");
-  const messageStream = document.querySelector<HTMLElement>(".reading__message");
-  if (loadingStream) targets.push(loadingStream);
-  if (messageStream) targets.push(messageStream);
-  return targets;
-}
-
-export function resetReadingStream() {
-  const targets = getStreamTargets();
-  if (targets.length === 0) {
-    if (isDebugEnabled()) {
-      debugLog("warn", "reading:stream:targets:missing", { action: "reset" });
-    }
-    return;
-  }
-  readingStreamBuffer = "";
-  targets.forEach((target) => {
-    target.textContent = "";
-  });
-}
-
-export function appendReadingStream(chunk: string) {
-  const targets = getStreamTargets();
-  if (targets.length === 0) {
-    if (isDebugEnabled()) {
-      debugLog("warn", "reading:stream:targets:missing", { action: "append" });
-    }
-    return;
-  }
-  readingStreamBuffer += chunk;
-  targets.forEach((target) => {
-    target.textContent = readingStreamBuffer;
-  });
+  if (save) save.disabled = isGenerating;
+  if (share) share.disabled = isGenerating;
 }
 
 export function showToast(message: string) {
@@ -375,4 +495,10 @@ export function showToast(message: string) {
   window.setTimeout(() => {
     footer.textContent = "For reflection and entertainment. Your intuition matters most.";
   }, 3500);
+}
+
+function renderStars(count: number) {
+  const filled = "★".repeat(Math.max(0, Math.min(5, count)));
+  const empty = "☆".repeat(Math.max(0, 5 - Math.min(5, count)));
+  return `${filled}${empty}`;
 }
