@@ -11,6 +11,7 @@ let loadingHideTimeout: number | null = null;
 let loadedShownAt: number | null = null;
 let lastLoadedKey: string | null = null;
 let loadingDismissed = false;
+let readingStreamBuffer = "";
 const ratingLabels: Array<keyof DashboardPayload["today"]["ratings"]> = [
   "love",
   "work",

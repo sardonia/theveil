@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { DEFAULT_PROFILE } from "./domain/constants";
-import type { AppState, ModelStatus, ProfileDraft } from "./domain/types";
+import type { AppState, ModelStatus, ProfileDraft, StreamEvent } from "./domain/types";
 import { CommandBus } from "./state/commands";
 import { loadSnapshot, saveSnapshot } from "./state/snapshot";
 import { createStore } from "./state/store";
 import {
+  appendReadingStream,
   populateSelects,
   renderBusy,
   renderDashboard,
@@ -13,6 +14,7 @@ import {
   renderProfileDraft,
   renderRoute,
   renderValidationErrors,
+  resetReadingStream,
   showToast,
   updateBirthdateInputState,
 } from "./ui/dom";
@@ -544,6 +546,9 @@ window.addEventListener("DOMContentLoaded", () => {
   debugLog("log", "bindTabs:done", {
     tabCount: document.querySelectorAll(".dashboard__tab").length,
   });
+
+  initReadingStream();
+  debugLog("log", "initReadingStream:started");
 
   renderInitial(store.getState());
   debugLog("log", "renderInitial:done", {

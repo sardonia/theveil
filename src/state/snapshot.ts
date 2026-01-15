@@ -61,7 +61,7 @@ export function saveSnapshot(state: AppState) {
   localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
 }
 
-function migrateSnapshot(snapshot: Snapshot): AppState {
+function migrateSnapshot(_snapshot: Snapshot): AppState {
   return getDefaultState();
 }
 
