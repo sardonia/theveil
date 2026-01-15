@@ -247,5 +247,5 @@ export function parseDashboardPayload(json: string): ValidationResult {
     return errorResult("Payload year.challengeMonth is invalid.");
   }
 
-  return { valid: true, payload: raw as DashboardPayload };
+  return { valid: true, payload: raw as unknown as DashboardPayload };
 }

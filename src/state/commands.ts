@@ -164,6 +164,7 @@ function defaultResetState(state: AppState): AppState {
     reading: {
       current: null,
       history: [],
+      error: null,
     },
     ui: {
       ...state.ui,

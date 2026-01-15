@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::webview::PageLoadEvent;
 use chrono::Datelike;
 
 #[cfg(feature = "mistral")]
@@ -902,27 +903,26 @@ pub fn run() {
         .manage(ModelManager::new())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let splash = app.get_webview_window("splashscreen");
-            let main = app.get_webview_window("main");
-            let app_handle = app.handle();
-
-            if let Some(splash_window) = &splash {
+            if let Some(splash_window) = app.get_webview_window("splashscreen") {
                 let _ = splash_window.show();
             }
-            if let Some(main_window) = &main {
-                let app_handle = app_handle.clone();
-                main_window.on_page_load(move |_window, _| {
-                    if let Some(splash_window) = app_handle.get_webview_window("splashscreen") {
-                        let _ = splash_window.close();
-                    }
-                    if let Some(main_window) = app_handle.get_webview_window("main") {
-                        let _ = main_window.show();
-                        let _ = main_window.set_focus();
-                    }
-                });
-            }
-
             Ok(())
+        })
+        .on_page_load(|webview, payload| {
+            if webview.label() != "main" {
+                return;
+            }
+            if payload.event() != PageLoadEvent::Finished {
+                return;
+            }
+            let app_handle = webview.window().app_handle().clone();
+            if let Some(splash_window) = app_handle.get_webview_window("splashscreen") {
+                let _ = splash_window.close();
+            }
+            if let Some(main_window) = app_handle.get_webview_window("main") {
+                let _ = main_window.show();
+                let _ = main_window.set_focus();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             close_splashscreen,

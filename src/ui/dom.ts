@@ -11,6 +11,7 @@ let loadingHideTimeout: number | null = null;
 let loadedShownAt: number | null = null;
 let lastLoadedKey: string | null = null;
 let loadingDismissed = false;
+let readingStreamBuffer = "";
 const ratingLabels: Array<keyof DashboardPayload["today"]["ratings"]> = [
   "love",
   "work",
@@ -368,6 +369,125 @@ export function renderDashboard(
       )
       .join("");
   }
+
+  if (ratingsEl) {
+    ratingsEl.innerHTML = ratingLabels
+      .map((label) => {
+        const rating = payload.today.ratings[label];
+        const labelText = `${label[0].toUpperCase()}${label.slice(1)}`;
+        return `
+          <div class="rating">
+            <span class="rating__label">${labelText}</span>
+            <span class="rating__stars">${renderStars(rating)}</span>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  if (cosmicMoonEl) {
+    cosmicMoonEl.textContent = `${payload.cosmicWeather.moon.phase} in ${payload.cosmicWeather.moon.sign}`;
+  }
+  if (cosmicTransitsEl) {
+    cosmicTransitsEl.innerHTML = payload.cosmicWeather.transits
+      .map((transit) => {
+        const toneClass =
+          transit.tone === "soft"
+            ? "pill--soft"
+            : transit.tone === "intense"
+              ? "pill--intense"
+              : "";
+        return `
+          <div class="pill ${toneClass}">
+            <strong>${transit.title}</strong>
+            <span>${transit.meaning}</span>
+          </div>
+        `;
+      })
+      .join("");
+  }
+  if (cosmicAffectsEl) cosmicAffectsEl.textContent = payload.cosmicWeather.affectsToday;
+
+  if (compBestEl) compBestEl.textContent = payload.compatibility.bestFlowWith.join(", ");
+  if (compHandleEl) {
+    compHandleEl.textContent = payload.compatibility.handleGentlyWith.join(", ");
+  }
+  if (compConflictEl) compConflictEl.textContent = payload.compatibility.tips.conflict;
+  if (compAffectionEl) {
+    compAffectionEl.textContent = payload.compatibility.tips.affection;
+  }
+
+  if (journalPromptEl) journalPromptEl.textContent = payload.journalRitual.prompt;
+  if (journalStartersEl) {
+    journalStartersEl.innerHTML = payload.journalRitual.starters
+      .map((starter) => `<span class="chip">${starter}</span>`)
+      .join("");
+  }
+  if (journalMantraEl) journalMantraEl.textContent = payload.journalRitual.mantra;
+  if (journalRitualEl) journalRitualEl.textContent = payload.journalRitual.ritual;
+  if (journalBestDayEl) {
+    journalBestDayEl.textContent = payload.journalRitual.bestDayForDecisions.dayLabel;
+  }
+  if (journalBestReasonEl) {
+    journalBestReasonEl.textContent =
+      payload.journalRitual.bestDayForDecisions.reason;
+  }
+
+  if (weekArcEl) {
+    weekArcEl.innerHTML = `
+      <p><strong>Start:</strong> ${payload.week.arc.start}</p>
+      <p><strong>Midweek:</strong> ${payload.week.arc.midweek}</p>
+      <p><strong>Weekend:</strong> ${payload.week.arc.weekend}</p>
+    `;
+  }
+  if (weekOpportunityEl) weekOpportunityEl.textContent = payload.week.keyOpportunity;
+  if (weekCautionEl) weekCautionEl.textContent = payload.week.keyCaution;
+  if (weekDecisionsEl) weekDecisionsEl.textContent = payload.week.bestDayFor.decisions;
+  if (weekConversationsEl) {
+    weekConversationsEl.textContent = payload.week.bestDayFor.conversations;
+  }
+  if (weekRestEl) weekRestEl.textContent = payload.week.bestDayFor.rest;
+
+  if (monthThemeEl) monthThemeEl.textContent = payload.month.theme;
+  if (monthDatesEl) {
+    monthDatesEl.innerHTML = payload.month.keyDates
+      .map(
+        (date) => `
+          <li>
+            <strong>${date.dateLabel}</strong>
+            <span>${date.title} — ${date.note}</span>
+          </li>
+        `
+      )
+      .join("");
+  }
+  if (monthNewMoonEl) {
+    monthNewMoonEl.textContent = `${payload.month.newMoon.dateLabel}: ${payload.month.newMoon.intention}`;
+  }
+  if (monthFullMoonEl) {
+    monthFullMoonEl.textContent = `${payload.month.fullMoon.dateLabel}: ${payload.month.fullMoon.release}`;
+  }
+  if (monthOneThingEl) monthOneThingEl.textContent = payload.month.oneThing;
+
+  if (yearHeadlineEl) yearHeadlineEl.textContent = payload.year.headline;
+  if (yearQuartersEl) {
+    yearQuartersEl.innerHTML = payload.year.quarters
+      .map(
+        (quarter) => `
+          <li>
+            <strong>${quarter.label}</strong>
+            <span>${quarter.focus}</span>
+          </li>
+        `
+      )
+      .join("");
+  }
+  if (yearPowerEl) yearPowerEl.textContent = payload.year.powerMonths.join(" · ");
+  if (yearChallengeEl) {
+    yearChallengeEl.textContent = `${payload.year.challengeMonth.month}: ${payload.year.challengeMonth.guidance}`;
+  }
+  if (errorEl) errorEl.textContent = "";
+}
 
 export function renderBusy(isGenerating: boolean) {
   const loading = document.querySelector<HTMLElement>("#reading-loading");
