@@ -10,6 +10,18 @@
 
   <body>
     <canvas id="starfield" aria-hidden="true"></canvas>
+    <div class="app-loading" id="app-loading" role="status" aria-live="polite">
+      <div class="app-loading__card">
+        <p class="app-loading__eyebrow">Veil</p>
+        <h2 class="app-loading__title">Preparing your stars</h2>
+        <p class="app-loading__status" id="app-loading-status">
+          Preparing the star map…
+        </p>
+        <div class="app-loading__progress">
+          <div class="app-loading__bar" id="app-loading-progress"></div>
+        </div>
+      </div>
+    </div>
     <div id="app" class="app" aria-live="polite">
       <header class="app__header">
         <p class="app__eyebrow">Veil</p>

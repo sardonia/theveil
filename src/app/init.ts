@@ -105,6 +105,10 @@ export function initApp() {
     debugLog("log", "renderInitial:done", {
       route: store.getState().ui.route,
     });
+    debugLog("log", "renderInitial:dom", {
+      hasAppLoading: Boolean(document.querySelector("#app-loading")),
+      hasDashboardLoading: Boolean(document.querySelector("#dashboard-loading")),
+    });
 
     initReadingStream();
     debugLog("log", "initReadingStream:started");

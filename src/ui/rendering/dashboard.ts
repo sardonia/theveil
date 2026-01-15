@@ -26,6 +26,8 @@ export function renderDashboard(
   const dontEl = document.querySelector<HTMLElement>("#dashboard-dont");
   const sectionsEl = document.querySelector<HTMLElement>("#dashboard-sections");
   const ratingsEl = document.querySelector<HTMLElement>("#dashboard-ratings");
+  const loadingEl = document.querySelector<HTMLElement>("#dashboard-loading");
+  const bodyEl = document.querySelector<HTMLElement>("#dashboard-body");
 
   const cosmicMoonEl = document.querySelector<HTMLElement>("#cosmic-moon");
   const cosmicTransitsEl = document.querySelector<HTMLElement>("#cosmic-transits");
@@ -79,6 +81,23 @@ export function renderDashboard(
     if (ratingsEl) ratingsEl.innerHTML = "";
     if (errorEl) errorEl.textContent = error ?? "";
     return;
+  }
+
+  if (loadingEl) loadingEl.hidden = true;
+  if (bodyEl) {
+    bodyEl.style.opacity = "1";
+    bodyEl.classList.remove("is-loading");
+  }
+
+  if (isDebugEnabled()) {
+    debugLog("log", "renderDashboard:payload", {
+      dateISO: payload.meta.dateISO,
+      sign: payload.meta.sign,
+      hasLoadingEl: Boolean(loadingEl),
+      loadingHidden: loadingEl?.hidden,
+      bodyOpacity: bodyEl?.style.opacity,
+      bodyLoading: bodyEl?.classList.contains("is-loading"),
+    });
   }
 
   if (dateEl) dateEl.textContent = payload.meta.localeDateLabel;
