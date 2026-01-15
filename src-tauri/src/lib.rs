@@ -236,13 +236,13 @@ pub struct SamplingParams {
 impl Default for SamplingParams {
     fn default() -> Self {
         Self {
-            temperature: 0.4,
+            temperature: 0.45,
             top_p: 0.9,
-            top_k: 40,
-            repeat_penalty: 1.12,
+            top_k: 50,
+            repeat_penalty: 1.1,
             max_tokens: 1200,
             seed: None,
-            stop: vec!["\n\n".to_string(), "```".to_string()],
+            stop: vec![],
         }
     }
 }

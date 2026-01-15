@@ -1,138 +1,197 @@
 interface PromptContext {
   name: string;
+  birthdate: string;
   sign: string;
   localeDateLabel: string;
   dateISO: string;
-  tone: "mystical" | "practical" | "balanced";
-  focus: "general" | "love" | "work" | "money" | "health";
+  mood: string;
+  personality: string;
+  generatedAtISO: string;
 }
 
-const JSON_SCHEMA_EXAMPLE = `{
-  "meta": {
-    "dateISO": "2025-01-14",
-    "localeDateLabel": "Wednesday, January 14",
-    "generatedAtISO": "2025-01-14T09:12:00.000Z",
-    "sign": "Leo",
-    "name": "Sean"
-  },
-  "tabs": {
-    "activeDefault": "today"
-  },
-  "today": {
-    "headline": "Soft focus, clear intention",
-    "subhead": "A steady glow guides your choices.",
-    "theme": "Clarity",
-    "energyScore": 72,
-    "bestHours": [
-      { "label": "Morning", "start": "9:00 AM", "end": "11:00 AM" },
-      { "label": "Evening", "start": "5:00 PM", "end": "7:00 PM" }
-    ],
-    "ratings": { "love": 4, "work": 4, "money": 3, "health": 4 },
-    "lucky": { "color": "Gold", "number": 3, "symbol": "★" },
-    "doDont": { "do": "Trust your instincts", "dont": "Overshare" },
-    "sections": [
-      { "title": "Focus", "body": "Pick one clear intention and let the rest soften." },
-      { "title": "Relationships", "body": "Lead with warmth and give space for others to respond." },
-      { "title": "Action", "body": "Take one grounded step that supports your long view." },
-      { "title": "Reflection", "body": "Notice what feels steady and keep returning to it." }
-    ]
-  },
-  "cosmicWeather": {
-    "moon": { "phase": "First Quarter", "sign": "Cancer" },
-    "transits": [
-      { "title": "Mercury retrograde themes", "tone": "neutral", "meaning": "Review and simplify before committing." },
-      { "title": "Venus harmony", "tone": "soft", "meaning": "Gentle conversations land well." }
-    ],
-    "affectsToday": "Emotional tides rise and fall; choose calm responses."
-  },
-  "compatibility": {
-    "bestFlowWith": ["Aries", "Gemini"],
-    "handleGentlyWith": ["Taurus"],
-    "tips": {
-      "conflict": "Pause before replying to keep things kind.",
-      "affection": "Playful honesty keeps the mood light."
-    }
-  },
-  "journalRitual": {
-    "prompt": "What am I protecting right now?",
-    "starters": ["I feel…", "I need…", "I'm avoiding…"],
-    "mantra": "I move with grace and clear intention.",
-    "ritual": "Light a candle and name one priority out loud.",
-    "bestDayForDecisions": { "dayLabel": "Thursday", "reason": "Clarity peaks in the afternoon." }
-  },
-  "week": {
-    "arc": {
-      "start": "Settle into a calm, focused rhythm.",
-      "midweek": "Tune inward before making changes.",
-      "weekend": "Conversations flow and ease returns."
+function buildDashboardTemplate(context: PromptContext): string {
+  const template = {
+    meta: {
+      dateISO: context.dateISO,
+      localeDateLabel: context.localeDateLabel,
+      generatedAtISO: context.generatedAtISO,
+      sign: context.sign,
+      name: context.name,
     },
-    "keyOpportunity": "Strengthen a bond through simple honesty.",
-    "keyCaution": "Avoid overcommitting before you feel ready.",
-    "bestDayFor": {
-      "decisions": "Thursday",
-      "conversations": "Wednesday",
-      "rest": "Sunday"
-    }
-  },
-  "month": {
-    "theme": "Clarity through gentle structure.",
-    "keyDates": [
-      { "dateLabel": "Jan 9–10", "title": "New Moon", "note": "Set intentions around focus." },
-      { "dateLabel": "Jan 17", "title": "Personal reset", "note": "Simplify a lingering task." },
-      { "dateLabel": "Jan 25", "title": "Full Moon", "note": "Release what feels heavy." }
-    ],
-    "newMoon": { "dateLabel": "Jan 9–10", "intention": "Commit to one steady practice." },
-    "fullMoon": { "dateLabel": "Jan 25", "release": "Let go of scattered priorities." },
-    "oneThing": "If you do one thing, choose the gentlest next step."
-  },
-  "year": {
-    "headline": "A year to trust your timing and refine your craft.",
-    "quarters": [
-      { "label": "Q1", "focus": "Grounded beginnings and clearing space." },
-      { "label": "Q2", "focus": "Momentum builds through collaboration." },
-      { "label": "Q3", "focus": "Visibility grows with steady effort." },
-      { "label": "Q4", "focus": "Integration and graceful completion." }
-    ],
-    "powerMonths": ["March", "July"],
-    "challengeMonth": { "month": "October", "guidance": "Slow down and streamline." }
-  }
-}`;
+    tabs: {
+      activeDefault: "today",
+    },
+    today: {
+      headline: "__FILL__",
+      subhead: "__FILL__",
+      theme: "__FILL__",
+      energyScore: "__FILL_INT_0_100__",
+      bestHours: [
+        { label: "__FILL__", start: "__FILL__", end: "__FILL__" },
+        { label: "__FILL__", start: "__FILL__", end: "__FILL__" },
+      ],
+      ratings: {
+        love: "__FILL_INT_0_5__",
+        work: "__FILL_INT_0_5__",
+        money: "__FILL_INT_0_5__",
+        health: "__FILL_INT_0_5__",
+      },
+      lucky: {
+        color: "__FILL__",
+        number: "__FILL_INT__",
+        symbol: "__FILL__",
+      },
+      doDont: {
+        do: "__FILL__",
+        dont: "__FILL__",
+      },
+      sections: [
+        { title: "Focus", body: "__FILL__" },
+        { title: "Relationships", body: "__FILL__" },
+        { title: "Action", body: "__FILL__" },
+        { title: "Reflection", body: "__FILL__" },
+      ],
+    },
+    cosmicWeather: {
+      moon: { phase: "__FILL__", sign: "__FILL__" },
+      transits: [
+        { title: "__FILL__", tone: "__FILL__", meaning: "__FILL__" },
+        { title: "__FILL__", tone: "__FILL__", meaning: "__FILL__" },
+      ],
+      affectsToday: "__FILL__",
+    },
+    compatibility: {
+      bestFlowWith: ["__FILL__", "__FILL__"],
+      handleGentlyWith: ["__FILL__"],
+      tips: {
+        conflict: "__FILL__",
+        affection: "__FILL__",
+      },
+    },
+    journalRitual: {
+      prompt: "__FILL__",
+      starters: ["__FILL__", "__FILL__", "__FILL__"],
+      mantra: "__FILL__",
+      ritual: "__FILL__",
+      bestDayForDecisions: { dayLabel: "__FILL__", reason: "__FILL__" },
+    },
+    week: {
+      arc: {
+        start: "__FILL__",
+        midweek: "__FILL__",
+        weekend: "__FILL__",
+      },
+      keyOpportunity: "__FILL__",
+      keyCaution: "__FILL__",
+      bestDayFor: {
+        decisions: "__FILL__",
+        conversations: "__FILL__",
+        rest: "__FILL__",
+      },
+    },
+    month: {
+      theme: "__FILL__",
+      keyDates: [
+        { dateLabel: "__FILL__", title: "__FILL__", note: "__FILL__" },
+        { dateLabel: "__FILL__", title: "__FILL__", note: "__FILL__" },
+        { dateLabel: "__FILL__", title: "__FILL__", note: "__FILL__" },
+      ],
+      newMoon: { dateLabel: "__FILL__", intention: "__FILL__" },
+      fullMoon: { dateLabel: "__FILL__", release: "__FILL__" },
+      oneThing: "__FILL__",
+    },
+    year: {
+      headline: "__FILL__",
+      quarters: [
+        { label: "Q1", focus: "__FILL__" },
+        { label: "Q2", focus: "__FILL__" },
+        { label: "Q3", focus: "__FILL__" },
+        { label: "Q4", focus: "__FILL__" },
+      ],
+      powerMonths: ["__FILL__", "__FILL__"],
+      challengeMonth: { month: "__FILL__", guidance: "__FILL__" },
+    },
+  };
 
-export function buildDashboardPrompt(context: PromptContext): string {
+  return JSON.stringify(template, null, 2);
+}
+
+export function buildDashboardPrompt(context: PromptContext): {
+  prompt: string;
+  templateJson: string;
+} {
+  const templateJson = buildDashboardTemplate(context);
+  const prompt = [
+    "SYSTEM:",
+    "You output JSON only. No markdown. No extra keys.",
+    "",
+    "USER:",
+    "Create a calm, premium horoscope \"Cosmic Dashboard\" payload for:",
+    `- Name: ${context.name}`,
+    `- Birthdate: ${context.birthdate}`,
+    `- Sun sign: ${context.sign}`,
+    `- Date: ${context.dateISO}`,
+    `- Mood: ${context.mood}`,
+    `- Personality: ${context.personality}`,
+    "",
+    "Rules:",
+    "- Output valid JSON only.",
+    "- Do not add or remove keys.",
+    "- Replace every placeholder value in the template below.",
+    "- Keep all strings UI-friendly: 1-2 sentences max where applicable.",
+    "- Numbers must respect placeholder constraints:",
+    "  - energyScore 0-100 (integer)",
+    "  - ratings 0-5 (integers)",
+    "  - Provide exactly 2 bestHours windows",
+    "  - Provide exactly 3 month.keyDates",
+    "  - Provide exactly 4 year.quarters",
+    "- transit tone must be \"soft\", \"neutral\", or \"intense\".",
+    "- No newlines inside strings. Use short sentences.",
+    "",
+    "TEMPLATE_JSON:",
+    templateJson,
+    "",
+    "Output the completed JSON only.",
+  ].join("\n");
+
+  return { prompt, templateJson };
+}
+
+export function buildRepairPrompt(
+  context: PromptContext,
+  templateJson: string,
+  modelOutput: string
+): string {
   return [
-    "SYSTEM / INSTRUCTION:",
-    "You are an offline horoscope assistant generating structured content for a calm “Cosmic Dashboard” UI. You must output STRICT JSON ONLY that matches the required schema. Do NOT output markdown, explanations, or extra keys. Every key must be present. Keep text concise, soothing, and premium.",
+    "SYSTEM:",
+    "You output JSON only. No markdown.",
     "",
-    "USER CONTEXT (inject values):",
+    "USER:",
+    "You will be given:",
+    "1) The required TEMPLATE_JSON (structure is correct)",
+    "2) A MODEL_OUTPUT that is supposed to match it but may be invalid JSON or missing keys.",
+    "",
+    "Task:",
+    "- Return valid JSON only.",
+    "- Make MODEL_OUTPUT conform exactly to TEMPLATE_JSON keys and types.",
+    "- Do not invent new keys.",
+    "- If a field is missing, fill it with a reasonable short value consistent with the user context.",
+    "- No commentary.",
+    "",
+    "User context:",
     `Name: ${context.name}`,
+    `Birthdate: ${context.birthdate}`,
     `Sun sign: ${context.sign}`,
-    `Local date label: ${context.localeDateLabel}`,
-    `ISO date: ${context.dateISO}`,
-    `Tone: ${context.tone}  // "mystical" | "practical" | "balanced"`,
-    `Focus: ${context.focus} // "general" | "love" | "work" | "money" | "health"`,
+    `Date: ${context.dateISO}`,
+    `Mood: ${context.mood}`,
+    `Personality: ${context.personality}`,
     "",
-    "OUTPUT RULES:",
-    "- Output valid JSON only. No trailing commas.",
-    "- Strings must be short and UI-friendly.",
-    "- Today's headline, subhead, and sections must read like a professional daily horoscope.",
-    "- Today subhead should be 1–2 sentences; each section body should be 1–2 sentences.",
-    "- Ratings are integers 0–5.",
-    "- energyScore is 0–100.",
-    "- bestHours: provide exactly 2 windows with start/end like \"9:00 AM\".",
-    "- bestFlowWith: 2 signs. handleGentlyWith: 1 sign.",
-    "- transits: 2 items max, with tone and meaning.",
-    "- weekly arc: 3 short lines (Start/Midweek/Weekend).",
-    "- month keyDates: exactly 3 items.",
-    "- year quarters: exactly 4 items.",
+    "TEMPLATE_JSON:",
+    templateJson,
     "",
-    "JSON SCHEMA TO PRODUCE (match keys exactly):",
-    JSON_SCHEMA_EXAMPLE,
+    "MODEL_OUTPUT:",
+    modelOutput,
     "",
-    "CONTENT STYLE:",
-    "- Calm, luminous, gently directive. Avoid alarmist language.",
-    "- Don’t claim factual astronomical precision; phrase as “themes” and “cosmic weather”.",
-    `- Make it feel personalized to ${context.sign} without being cheesy.`,
-    "",
-    "Now produce the JSON payload.",
+    "Output the fixed JSON only.",
   ].join("\n");
 }
