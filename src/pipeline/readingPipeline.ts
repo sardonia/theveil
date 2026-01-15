@@ -1,12 +1,17 @@
-import type { AppState, ProfileDraft, Reading } from "../domain/types";
+import type { AppState, DashboardPayload, ProfileDraft } from "../domain/types";
 import { HoroscopeRepository } from "../repository/horoscopeRepository";
 import { debugModelLog } from "../debug/logger";
+import { zodiacSign } from "../domain/zodiac";
+import { buildDashboardPrompt } from "./dashboardPrompt";
+import { parseDashboardPayload } from "../domain/dashboard";
 
 export interface PipelineContext {
   profile: ProfileDraft;
-  date: string;
+  dateISO: string;
+  localeDateLabel: string;
   prompt?: string;
-  reading?: Reading;
+  payloadJson?: string;
+  payload?: DashboardPayload;
 }
 
 export interface PipelineStep {
@@ -15,13 +20,15 @@ export interface PipelineStep {
 
 export class BuildPromptStep implements PipelineStep {
   async run(context: PipelineContext) {
-    context.prompt = [
-      `Name: ${context.profile.name}`,
-      `Birthdate: ${context.profile.birthdate}`,
-      `Mood: ${context.profile.mood}`,
-      `Personality: ${context.profile.personality}`,
-      `Date: ${context.date}`,
-    ].join(" | ");
+    const sign = zodiacSign(context.profile.birthdate);
+    context.prompt = buildDashboardPrompt({
+      name: context.profile.name,
+      sign,
+      localeDateLabel: context.localeDateLabel,
+      dateISO: context.dateISO,
+      tone: "balanced",
+      focus: "general",
+    });
     debugModelLog("log", "pipeline:prompt:built", {
       prompt: context.prompt,
     });
@@ -39,47 +46,50 @@ export class InvokeModelStep implements PipelineStep {
     debugModelLog("log", "pipeline:invoke:start", {
       modelStatus: state.model.status,
     });
-    context.reading = await this.repository.generate(
+    context.payloadJson = await this.repository.generate(
       context.profile,
-      context.date,
+      context.dateISO,
       context.prompt,
       state.model.status
     );
     debugModelLog("log", "pipeline:invoke:done", {
-      source: context.reading?.source,
-      messageLength: context.reading?.message.length,
+      payloadLength: context.payloadJson?.length,
     });
   }
 }
 
-export class PostProcessStep implements PipelineStep {
+export class ValidatePayloadStep implements PipelineStep {
   async run(context: PipelineContext) {
-    if (!context.reading) {
-      return;
+    if (!context.payloadJson) return;
+    const result = parseDashboardPayload(context.payloadJson);
+    if (!result.valid) {
+      throw new Error(result.error);
     }
-    const message = context.reading.message.trim();
-    context.reading = {
-      ...context.reading,
-      message: message.charAt(0).toUpperCase() + message.slice(1),
-    };
-    debugModelLog("log", "pipeline:postprocess:done", {
-      messageLength: context.reading.message.length,
+    context.payload = result.payload;
+    debugModelLog("log", "pipeline:payload:validated", {
+      meta: result.payload.meta,
+      sections: result.payload.today.sections.length,
     });
   }
 }
 
 export async function runReadingPipeline(
   profile: ProfileDraft,
-  date: string,
+  dateISO: string,
   state: AppState
-): Promise<Reading> {
+): Promise<DashboardPayload> {
   const repository = new HoroscopeRepository();
   const steps: PipelineStep[] = [
     new BuildPromptStep(),
     new InvokeModelStep(repository),
-    new PostProcessStep(),
+    new ValidatePayloadStep(),
   ];
-  const context: PipelineContext = { profile, date };
+  const localeDateLabel = new Date(dateISO).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const context: PipelineContext = { profile, dateISO, localeDateLabel };
   for (const step of steps) {
     debugModelLog("log", "pipeline:step:start", {
       step: step.constructor.name,
@@ -89,8 +99,8 @@ export async function runReadingPipeline(
       step: step.constructor.name,
     });
   }
-  if (!context.reading) {
-    throw new Error("Unable to generate reading.");
+  if (!context.payload) {
+    throw new Error("Unable to generate dashboard payload.");
   }
-  return context.reading;
+  return context.payload;
 }

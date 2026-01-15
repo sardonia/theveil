@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { debugModelLog } from "../debug/logger";
-import type { ProfileDraft, Reading, SamplingParams } from "../domain/types";
+import type { ProfileDraft, SamplingParams } from "../domain/types";
 
 export interface HoroscopeAdapter {
   generate(
@@ -8,7 +8,7 @@ export interface HoroscopeAdapter {
     date: string,
     prompt: string | undefined,
     sampling: SamplingParams
-  ): Promise<Reading>;
+  ): Promise<string>;
 }
 
 export class EmbeddedModelAdapter implements HoroscopeAdapter {
@@ -30,17 +30,16 @@ export class EmbeddedModelAdapter implements HoroscopeAdapter {
       },
     });
     try {
-      const reading = await invoke<Reading>("generate_horoscope_stream", {
+      const payloadJson = await invoke<string>("generate_dashboard_payload", {
         profile,
         date,
         prompt,
         sampling,
       });
       debugModelLog("log", "adapter:model:response", {
-        source: reading.source,
-        messageLength: reading.message.length,
+        payloadLength: payloadJson.length,
       });
-      return reading;
+      return payloadJson;
     } catch (error) {
       debugModelLog("error", "adapter:model:error", error);
       throw error;

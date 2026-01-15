@@ -42,6 +42,10 @@ export function reducer(state: AppState, event: DomainEvent): AppState {
     case "ReadingGenerationStarted":
       return {
         ...state,
+        reading: {
+          ...state.reading,
+          error: null,
+        },
         ui: {
           ...state.ui,
           busyFlags: {
@@ -58,6 +62,7 @@ export function reducer(state: AppState, event: DomainEvent): AppState {
           history: state.reading.current
             ? [state.reading.current, ...state.reading.history].slice(0, 10)
             : state.reading.history,
+          error: null,
         },
         ui: {
           ...state.ui,
@@ -70,6 +75,10 @@ export function reducer(state: AppState, event: DomainEvent): AppState {
     case "ReadingGenerationFailed":
       return {
         ...state,
+        reading: {
+          ...state.reading,
+          error: event.error,
+        },
         ui: {
           ...state.ui,
           busyFlags: {

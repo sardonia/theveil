@@ -1,33 +1,40 @@
-import type { ProfileDraft, Reading } from "../domain/types";
+import type { DashboardPayload, ProfileDraft } from "../domain/types";
 import { zodiacSign } from "../domain/zodiac";
 
 export class StubAdapter {
-  async generate(profile: ProfileDraft, date: string): Promise<Reading> {
+  async generate(profile: ProfileDraft, dateISO: string): Promise<string> {
     const sign = zodiacSign(profile.birthdate);
-    const seed = hashSeed(`${profile.name}-${date}-${sign}-${profile.mood}-${profile.personality}`);
+    const seed = hashSeed(
+      `${profile.name}-${dateISO}-${sign}-${profile.mood}-${profile.personality}`
+    );
     const rng = seeded(seed);
+    const localeDateLabel = new Date(dateISO).toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
 
     const title = pick(rng, [
-      "The hush before a bright idea",
       "Soft focus, clear intention",
+      "The hush before a bright idea",
       "A horizon you can trust",
       "The spark beneath stillness",
       "A graceful return to center",
     ]);
 
     const openings = [
-      `Today opens with a ${profile.mood.toLowerCase()} current that invites gentler choices.`,
-      `The day moves at a ${profile.mood.toLowerCase()} pace, offering room to breathe.`,
-      `You may notice a ${profile.mood.toLowerCase()} undertone guiding your timing.`,
+      `The day opens with a ${profile.mood.toLowerCase()} current that invites gentler choices.`,
+      `A ${profile.mood.toLowerCase()} undertone guides your timing and attention.`,
+      `You move through a ${profile.mood.toLowerCase()} rhythm that rewards patience.`,
     ];
     const middles = [
-      `As a ${profile.personality}, you naturally notice patterns others miss, so trust what quietly repeats.`,
-      `Your ${profile.personality.toLowerCase()} instincts highlight what is worth protecting and what can soften.`,
-      `The ${profile.personality.toLowerCase()} in you is ready to translate intuition into a simple next step.`,
+      `As ${sign}, your ${profile.personality.toLowerCase()} nature notices subtle shifts first.`,
+      `Your ${profile.personality.toLowerCase()} instincts highlight what wants to soften.`,
+      `The ${profile.personality.toLowerCase()} in you translates intuition into one clear step.`,
     ];
     const closers = [
-      `Let small rituals ground you, and remember that clarity arrives in layers, not lightning bolts.`,
-      `If you pause before responding, the right phrasing will rise on its own.`,
+      `Let small rituals ground you, and let clarity arrive in layers.`,
+      `Pause before replying and your best phrasing will surface.`,
       `Choose one gentle action that honors your energy, and let that be enough.`,
     ];
 
@@ -35,44 +42,127 @@ export class StubAdapter {
       .join(" ")
       .trim();
 
-    const themes = shuffle(rng, [
-      "Quiet confidence",
-      "Meaningful timing",
-      "Boundaries with kindness",
-      "Creative listening",
-      "Soft courage",
-      "Steady focus",
-    ]).slice(0, 3) as [string, string, string];
-
-    const affirmation = pick(rng, [
-      "I meet today with grounded curiosity.",
-      "I can move gently and still be powerful.",
-      "My inner compass grows clearer with every breath.",
-      "I honor what I feel and choose what I need.",
-    ]);
-
-    const luckyColor = pick(rng, [
-      "Moonlit Indigo",
-      "Starlight Silver",
-      "Luminous Lavender",
-      "Sea-glass Teal",
-      "Amber Mist",
-    ]);
-
-    const luckyNumber = Math.floor(rng() * 9) + 1;
-
-    return {
-      date,
-      sign,
-      title,
-      message,
-      themes,
-      affirmation,
-      luckyColor,
-      luckyNumber,
-      createdAt: new Date().toISOString(),
-      source: "stub",
+    const payload: DashboardPayload = {
+      meta: {
+        dateISO,
+        localeDateLabel,
+        generatedAtISO: new Date().toISOString(),
+        sign,
+        name: profile.name,
+      },
+      tabs: {
+        activeDefault: "today",
+      },
+      today: {
+        headline: title,
+        subhead: message,
+        theme: pick(rng, ["Clarity", "Patience", "Warmth", "Alignment", "Ease"]),
+        energyScore: Math.floor(rng() * 45) + 55,
+        bestHours: [
+          { label: "Morning", start: "9:00 AM", end: "11:00 AM" },
+          { label: "Evening", start: "5:00 PM", end: "7:00 PM" },
+        ],
+        ratings: {
+          love: Math.floor(rng() * 3) + 3,
+          work: Math.floor(rng() * 3) + 3,
+          money: Math.floor(rng() * 3) + 2,
+          health: Math.floor(rng() * 3) + 3,
+        },
+        lucky: {
+          color: pick(rng, ["Gold", "Moonlit Indigo", "Soft Lavender", "Sea-glass Teal"]),
+          number: Math.floor(rng() * 9) + 1,
+          symbol: pick(rng, ["★", "☾", "✦"]),
+        },
+        doDont: {
+          do: "Trust your instincts and keep plans simple.",
+          dont: "Overshare or rush to fill quiet moments.",
+        },
+        sections: [
+          { title: "Focus", body: "Pick one clear priority and let the rest soften." },
+          { title: "Relationships", body: "Lead with warmth and give others space to respond." },
+          { title: "Action", body: "Take one grounded step that supports your long view." },
+          { title: "Reflection", body: "Notice what feels steady and keep returning to it." },
+        ],
+      },
+      cosmicWeather: {
+        moon: {
+          phase: pick(rng, ["First Quarter", "Waxing Crescent", "Full Moon", "New Moon"]),
+          sign: pick(rng, ["Cancer", "Libra", "Scorpio", "Taurus"]),
+        },
+        transits: [
+          {
+            title: "Mercury review cycle",
+            tone: "neutral",
+            meaning: "Double-check details before committing.",
+          },
+          {
+            title: "Venus harmony",
+            tone: "soft",
+            meaning: "Gentle conversations land with ease.",
+          },
+        ],
+        affectsToday: "Emotional tides rise and fall; choose calm responses.",
+      },
+      compatibility: {
+        bestFlowWith: shuffle(rng, ["Aries", "Gemini", "Libra", "Sagittarius"]).slice(
+          0,
+          2
+        ),
+        handleGentlyWith: [pick(rng, ["Taurus", "Scorpio", "Capricorn"])],
+        tips: {
+          conflict: "Pause before replying to keep things kind.",
+          affection: "Playful honesty keeps the mood light.",
+        },
+      },
+      journalRitual: {
+        prompt: "What feels most important to protect today?",
+        starters: ["I feel…", "I need…", "I'm avoiding…"],
+        mantra: "I move with grace and clear intention.",
+        ritual: "Light a candle and name one priority out loud.",
+        bestDayForDecisions: {
+          dayLabel: "Thursday",
+          reason: "Clarity peaks in the afternoon.",
+        },
+      },
+      week: {
+        arc: {
+          start: "Settle into a calm, focused rhythm.",
+          midweek: "Tune inward before making changes.",
+          weekend: "Conversations flow and ease returns.",
+        },
+        keyOpportunity: "Strengthen a bond through simple honesty.",
+        keyCaution: "Avoid overcommitting before you feel ready.",
+        bestDayFor: {
+          decisions: "Thursday",
+          conversations: "Wednesday",
+          rest: "Sunday",
+        },
+      },
+      month: {
+        theme: "Clarity through gentle structure.",
+        keyDates: [
+          { dateLabel: "Jan 9–10", title: "New Moon", note: "Set intentions around focus." },
+          { dateLabel: "Jan 17", title: "Personal reset", note: "Simplify a lingering task." },
+          { dateLabel: "Jan 25", title: "Full Moon", note: "Release what feels heavy." },
+        ],
+        newMoon: { dateLabel: "Jan 9–10", intention: "Commit to one steady practice." },
+        fullMoon: { dateLabel: "Jan 25", release: "Let go of scattered priorities." },
+        oneThing: "If you do one thing, choose the gentlest next step.",
+      },
+      year: {
+        headline: "A year to trust your timing and refine your craft.",
+        quarters: [
+          { label: "Q1", focus: "Grounded beginnings and clearing space." },
+          { label: "Q2", focus: "Momentum builds through collaboration." },
+          { label: "Q3", focus: "Visibility grows with steady effort." },
+          { label: "Q4", focus: "Integration and graceful completion." },
+        ],
+        powerMonths: ["March", "July"],
+        challengeMonth: { month: "October", guidance: "Slow down and streamline." },
+      },
     };
+
+    return JSON.stringify(payload);
   }
 }
 

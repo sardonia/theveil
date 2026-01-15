@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -73,6 +74,11 @@ pub trait HoroscopeModelBackend: Send + Sync {
         request: &ReadingRequest,
         sampling: &SamplingParams,
     ) -> Result<String, String>;
+    fn generate_dashboard_json(
+        &self,
+        request: &ReadingRequest,
+        sampling: &SamplingParams,
+    ) -> Result<String, String>;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -99,6 +105,15 @@ impl HoroscopeModelBackend for StubBackend {
         _sampling: &SamplingParams,
     ) -> Result<String, String> {
         serde_json::to_string(&crate::generate_stub_reading(request))
+            .map_err(|error| error.to_string())
+    }
+
+    fn generate_dashboard_json(
+        &self,
+        request: &ReadingRequest,
+        _sampling: &SamplingParams,
+    ) -> Result<String, String> {
+        serde_json::to_string(&crate::generate_stub_dashboard(request))
             .map_err(|error| error.to_string())
     }
 }
@@ -146,6 +161,16 @@ impl HoroscopeModelBackend for EmbeddedBackend {
     ) -> Result<String, String> {
         let _ = (&self.model_path, sampling);
         serde_json::to_string(&crate::generate_stub_reading(request))
+            .map_err(|error| error.to_string())
+    }
+
+    fn generate_dashboard_json(
+        &self,
+        request: &ReadingRequest,
+        sampling: &SamplingParams,
+    ) -> Result<String, String> {
+        let _ = (&self.model_path, sampling);
+        serde_json::to_string(&crate::generate_stub_dashboard(request))
             .map_err(|error| error.to_string())
     }
 }
@@ -210,11 +235,11 @@ pub struct SamplingParams {
 impl Default for SamplingParams {
     fn default() -> Self {
         Self {
-            temperature: 0.7,
+            temperature: 0.4,
             top_p: 0.9,
             top_k: 40,
             repeat_penalty: 1.12,
-            max_tokens: 320,
+            max_tokens: 1200,
             seed: None,
             stop: vec!["\n\n".to_string(), "```".to_string()],
         }
@@ -358,6 +383,37 @@ async fn generate_horoscope_stream(
                 Ok(reading)
             } else {
                 emit_stream_event(&app, StreamEvent::End);
+                Err(error)
+            }
+        }
+    }
+}
+
+#[tauri::command]
+async fn generate_dashboard_payload(
+    state: State<'_, ModelManager>,
+    profile: Profile,
+    date: String,
+    prompt: Option<String>,
+    sampling: Option<SamplingParams>,
+) -> Result<String, String> {
+    let request = ReadingRequest {
+        profile,
+        date,
+        prompt,
+        sampling: sampling.unwrap_or_default(),
+    };
+
+    let (backend, source) = state.select_backend();
+    let result = backend.generate_dashboard_json(&request, &request.sampling);
+    match result {
+        Ok(json) => Ok(json),
+        Err(error) => {
+            if matches!(source, ReadingSource::Model) {
+                eprintln!("Model inference failed, falling back to stub: {}", error);
+                serde_json::to_string(&crate::generate_stub_dashboard(&request))
+                    .map_err(|err| err.to_string())
+            } else {
                 Err(error)
             }
         }
@@ -571,6 +627,191 @@ fn generate_stub_reading(request: &ReadingRequest) -> Reading {
     }
 }
 
+fn generate_stub_dashboard(request: &ReadingRequest) -> serde_json::Value {
+    let sign = zodiac_sign(&request.profile.birthdate);
+    let seed = seeded_hash(&format!(
+        "{}-{}-{}-{}-{}",
+        request.profile.name,
+        request.date,
+        sign,
+        request.profile.mood,
+        request.profile.personality
+    ));
+    let mut rng = SeededRng::new(seed);
+
+    let title = pick(
+        &mut rng,
+        &[
+            "Soft focus, clear intention",
+            "The hush before a bright idea",
+            "A horizon you can trust",
+            "The spark beneath stillness",
+            "A graceful return to center",
+        ],
+    );
+    let openings = vec![
+        format!(
+            "The day opens with a {} current that invites gentler choices.",
+            request.profile.mood.to_lowercase()
+        ),
+        format!(
+            "A {} undertone guides your timing and attention.",
+            request.profile.mood.to_lowercase()
+        ),
+        format!(
+            "You move through a {} rhythm that rewards patience.",
+            request.profile.mood.to_lowercase()
+        ),
+    ];
+    let middles = vec![
+        format!(
+            "As {}, your {} nature notices subtle shifts first.",
+            sign,
+            request.profile.personality.to_lowercase()
+        ),
+        format!(
+            "Your {} instincts highlight what wants to soften.",
+            request.profile.personality.to_lowercase()
+        ),
+        format!(
+            "The {} in you translates intuition into one clear step.",
+            request.profile.personality.to_lowercase()
+        ),
+    ];
+    let closers = vec![
+        "Let small rituals ground you, and let clarity arrive in layers.".to_string(),
+        "Pause before replying and your best phrasing will surface.".to_string(),
+        "Choose one gentle action that honors your energy, and let that be enough.".to_string(),
+    ];
+    let message = format!(
+        "{} {} {}",
+        pick_string(&mut rng, &openings),
+        pick_string(&mut rng, &middles),
+        pick_string(&mut rng, &closers)
+    );
+
+    let date_label = chrono::NaiveDate::parse_from_str(&request.date, "%Y-%m-%d")
+        .map(|date| date.format("%A, %B %-d").to_string())
+        .unwrap_or_else(|_| request.date.clone());
+
+    json!({
+        "meta": {
+            "dateISO": request.date.clone(),
+            "localeDateLabel": date_label,
+            "generatedAtISO": chrono::Utc::now().to_rfc3339(),
+            "sign": sign,
+            "name": request.profile.name.clone()
+        },
+        "tabs": {
+            "activeDefault": "today"
+        },
+        "today": {
+            "headline": title,
+            "subhead": message,
+            "theme": pick(&mut rng, &["Clarity", "Patience", "Warmth", "Alignment", "Ease"]),
+            "energyScore": (rng.next() * 45.0).floor() as u8 + 55,
+            "bestHours": [
+                { "label": "Morning", "start": "9:00 AM", "end": "11:00 AM" },
+                { "label": "Evening", "start": "5:00 PM", "end": "7:00 PM" }
+            ],
+            "ratings": {
+                "love": (rng.next() * 3.0).floor() as u8 + 3,
+                "work": (rng.next() * 3.0).floor() as u8 + 3,
+                "money": (rng.next() * 3.0).floor() as u8 + 2,
+                "health": (rng.next() * 3.0).floor() as u8 + 3
+            },
+            "lucky": {
+                "color": pick(&mut rng, &["Gold", "Moonlit Indigo", "Soft Lavender", "Sea-glass Teal"]),
+                "number": (rng.next() * 9.0).floor() as u8 + 1,
+                "symbol": pick(&mut rng, &["★", "☾", "✦"])
+            },
+            "doDont": {
+                "do": "Trust your instincts and keep plans simple.",
+                "dont": "Overshare or rush to fill quiet moments."
+            },
+            "sections": [
+                { "title": "Focus", "body": "Pick one clear priority and let the rest soften." },
+                { "title": "Relationships", "body": "Lead with warmth and give others space to respond." },
+                { "title": "Action", "body": "Take one grounded step that supports your long view." },
+                { "title": "Reflection", "body": "Notice what feels steady and keep returning to it." }
+            ]
+        },
+        "cosmicWeather": {
+            "moon": {
+                "phase": pick(&mut rng, &["First Quarter", "Waxing Crescent", "Full Moon", "New Moon"]),
+                "sign": pick(&mut rng, &["Cancer", "Libra", "Scorpio", "Taurus"])
+            },
+            "transits": [
+                {
+                    "title": "Mercury review cycle",
+                    "tone": "neutral",
+                    "meaning": "Double-check details before committing."
+                },
+                {
+                    "title": "Venus harmony",
+                    "tone": "soft",
+                    "meaning": "Gentle conversations land with ease."
+                }
+            ],
+            "affectsToday": "Emotional tides rise and fall; choose calm responses."
+        },
+        "compatibility": {
+            "bestFlowWith": ["Aries", "Gemini"],
+            "handleGentlyWith": ["Taurus"],
+            "tips": {
+                "conflict": "Pause before replying to keep things kind.",
+                "affection": "Playful honesty keeps the mood light."
+            }
+        },
+        "journalRitual": {
+            "prompt": "What feels most important to protect today?",
+            "starters": ["I feel…", "I need…", "I'm avoiding…"],
+            "mantra": "I move with grace and clear intention.",
+            "ritual": "Light a candle and name one priority out loud.",
+            "bestDayForDecisions": {
+                "dayLabel": "Thursday",
+                "reason": "Clarity peaks in the afternoon."
+            }
+        },
+        "week": {
+            "arc": {
+                "start": "Settle into a calm, focused rhythm.",
+                "midweek": "Tune inward before making changes.",
+                "weekend": "Conversations flow and ease returns."
+            },
+            "keyOpportunity": "Strengthen a bond through simple honesty.",
+            "keyCaution": "Avoid overcommitting before you feel ready.",
+            "bestDayFor": {
+                "decisions": "Thursday",
+                "conversations": "Wednesday",
+                "rest": "Sunday"
+            }
+        },
+        "month": {
+            "theme": "Clarity through gentle structure.",
+            "keyDates": [
+                { "dateLabel": "Jan 9–10", "title": "New Moon", "note": "Set intentions around focus." },
+                { "dateLabel": "Jan 17", "title": "Personal reset", "note": "Simplify a lingering task." },
+                { "dateLabel": "Jan 25", "title": "Full Moon", "note": "Release what feels heavy." }
+            ],
+            "newMoon": { "dateLabel": "Jan 9–10", "intention": "Commit to one steady practice." },
+            "fullMoon": { "dateLabel": "Jan 25", "release": "Let go of scattered priorities." },
+            "oneThing": "If you do one thing, choose the gentlest next step."
+        },
+        "year": {
+            "headline": "A year to trust your timing and refine your craft.",
+            "quarters": [
+                { "label": "Q1", "focus": "Grounded beginnings and clearing space." },
+                { "label": "Q2", "focus": "Momentum builds through collaboration." },
+                { "label": "Q3", "focus": "Visibility grows with steady effort." },
+                { "label": "Q4", "focus": "Integration and graceful completion." }
+            ],
+            "powerMonths": ["March", "July"],
+            "challengeMonth": { "month": "October", "guidance": "Slow down and streamline." }
+        }
+    })
+}
+
 fn zodiac_sign(date: &str) -> String {
     let parsed = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d");
     if let Ok(date) = parsed {
@@ -675,7 +916,8 @@ pub fn run() {
             init_model,
             model_status,
             generate_horoscope,
-            generate_horoscope_stream
+            generate_horoscope_stream,
+            generate_dashboard_payload
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

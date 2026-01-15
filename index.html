@@ -13,7 +13,9 @@
     <div id="app" class="app" aria-live="polite">
       <header class="app__header">
         <p class="app__eyebrow">Veil</p>
-        <h1 class="app__title">A gentle mirror for your day</h1>
+        <h1 class="app__title">
+          A gentle mirror <span class="app__title-gradient">for your day</span>
+        </h1>
         <p class="app__subtitle">
           A daily reading crafted offline, with calm guidance and luminous
           perspective.
@@ -106,60 +108,208 @@
               aria-labelledby="reading-title"
               aria-hidden="true"
             >
-              <div class="glass-card glass-card--reading">
-                <div class="glass-card__glow"></div>
-                <header class="reading__header">
-                  <p class="reading__date" id="reading-date"></p>
-                  <h2 id="reading-title">Your message for today</h2>
-                  <p class="reading__title" id="reading-title-text"></p>
-                  <p class="reading__sub" id="reading-subtitle"></p>
-                  <p class="reading__source" id="reading-source"></p>
-                </header>
-
-                <div class="reading__return">
-                  <div>
-                    <p class="reading__return-title">Need a new reflection?</p>
-                    <p class="reading__return-sub">Update your details and ask again.</p>
-                  </div>
-                  <button class="ghost-button" id="edit-profile">Back to details</button>
+              <div class="dashboard" id="dashboard-body">
+                <div class="dashboard__tabs" role="tablist" aria-label="Dashboard tabs">
+                  <button class="dashboard__tab is-active" data-target="today" type="button">
+                    Today
+                  </button>
+                  <button class="dashboard__tab" data-target="week" type="button">Week</button>
+                  <button class="dashboard__tab" data-target="month" type="button">Month</button>
+                  <button class="dashboard__tab" data-target="year" type="button">Year</button>
+                  <button class="dashboard__tab" data-target="moon" type="button">Moon</button>
+                  <button class="dashboard__tab" data-target="chart" type="button">Chart</button>
+                  <button class="dashboard__tab" data-target="journal" type="button">Journal</button>
                 </div>
 
-                <div class="reading__body" id="reading-body">
-                  <div class="reading__stream">
-                    <p class="reading__message"></p>
-                  </div>
-                  <div class="reading__themes">
-                    <h3>Themes to notice</h3>
-                    <ul id="reading-themes"></ul>
-                  </div>
-                  <div class="reading__meta">
+                <section class="glass-card dashboard-card dashboard-card--primary" id="dashboard-primary">
+                  <div class="glass-card__glow"></div>
+                  <div class="dashboard-card__top">
                     <div>
-                      <h4>Affirmation</h4>
-                      <p id="reading-affirmation"></p>
+                      <p class="dashboard__date" id="dashboard-date"></p>
+                      <h2 id="reading-title">Your message for today</h2>
+                      <p class="dashboard__headline" id="dashboard-headline"></p>
+                      <p class="dashboard__subhead" id="dashboard-subhead"></p>
+                      <p class="dashboard__signature" id="dashboard-signature"></p>
                     </div>
-                    <div>
-                      <h4>Lucky color</h4>
-                      <p id="reading-color"></p>
-                    </div>
-                    <div>
-                      <h4>Lucky number</h4>
-                      <p id="reading-number"></p>
+                    <div class="dashboard__actions">
+                      <button class="pill-button" id="save-reading" type="button">Save this</button>
+                      <button class="pill-button" id="share-reading" type="button">Share card</button>
                     </div>
                   </div>
-                </div>
 
-                <div class="reading__loading" id="reading-loading" hidden>
+                  <div class="dashboard__glance">
+                    <div class="glance-row">
+                      <div class="glance-item">
+                        <span>Theme</span>
+                        <strong id="dashboard-theme"></strong>
+                      </div>
+                      <div class="glance-item">
+                        <span>Energy</span>
+                        <strong id="dashboard-energy"></strong>
+                      </div>
+                      <div class="glance-item">
+                        <span>Best hours</span>
+                        <strong id="dashboard-best-hours"></strong>
+                      </div>
+                    </div>
+                    <div class="glance-ratings" id="dashboard-ratings"></div>
+                    <div class="glance-row">
+                      <div class="glance-item">
+                        <span>Lucky</span>
+                        <strong id="dashboard-lucky"></strong>
+                      </div>
+                      <div class="glance-item">
+                        <span>Do</span>
+                        <strong id="dashboard-do"></strong>
+                      </div>
+                      <div class="glance-item">
+                        <span>Don’t</span>
+                        <strong id="dashboard-dont"></strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="dashboard__sections" id="dashboard-sections"></div>
+
+                  <div class="dashboard__return">
+                    <div>
+                      <p class="dashboard__return-title">Need a new reflection?</p>
+                      <p class="dashboard__return-sub">Update your details or regenerate.</p>
+                    </div>
+                    <div class="dashboard__return-actions">
+                      <button class="ghost-button" id="edit-profile" type="button">
+                        Back to details
+                      </button>
+                      <button class="primary-button" id="regenerate" type="button">
+                        Regenerate
+                        <span class="button-shimmer"></span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="dashboard__error" id="dashboard-error"></div>
+                </section>
+
+                <div class="dashboard__loading" id="dashboard-loading" hidden>
                   <div class="spinner"></div>
                   <p>Weaving your message…</p>
-                  <p class="reading__stream-text" id="reading-stream"></p>
                 </div>
 
-                <div class="reading__actions">
-                  <button class="primary-button" id="regenerate">
-                    Ask the stars again
-                    <span class="button-shimmer"></span>
-                  </button>
-                  <button class="ghost-button" id="copy-reading">Copy to clipboard</button>
+                <div class="dashboard-grid">
+                  <section class="glass-card dashboard-card" id="cosmic-weather">
+                    <header class="dashboard-card__header">
+                      <h3>Cosmic Weather</h3>
+                    </header>
+                    <p class="card-subtitle" id="cosmic-moon"></p>
+                    <div class="pill-list" id="cosmic-transits"></div>
+                    <p class="card-body" id="cosmic-affects"></p>
+                  </section>
+
+                  <section class="glass-card dashboard-card" id="compatibility-card">
+                    <header class="dashboard-card__header">
+                      <h3>Compatibility</h3>
+                      <button class="text-button" id="open-archive" type="button">Archive</button>
+                    </header>
+                    <p><strong>Best flow:</strong> <span id="compatibility-best"></span></p>
+                    <p><strong>Handle gently:</strong> <span id="compatibility-handle"></span></p>
+                    <div class="tip-list">
+                      <div>
+                        <span>Conflict</span>
+                        <p id="compatibility-conflict"></p>
+                      </div>
+                      <div>
+                        <span>Affection</span>
+                        <p id="compatibility-affection"></p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="glass-card dashboard-card" id="journal-ritual">
+                    <header class="dashboard-card__header">
+                      <h3>Journal &amp; Ritual</h3>
+                    </header>
+                    <p class="card-body" id="journal-prompt"></p>
+                    <div class="chip-row" id="journal-starters"></div>
+                    <div class="card-split">
+                      <div>
+                        <span>Mantra</span>
+                        <p id="journal-mantra"></p>
+                      </div>
+                      <div>
+                        <span>Tiny ritual</span>
+                        <p id="journal-ritual"></p>
+                      </div>
+                    </div>
+                    <div class="card-highlight">
+                      <strong id="journal-best-day"></strong>
+                      <span id="journal-best-reason"></span>
+                    </div>
+                  </section>
+
+                  <section class="glass-card dashboard-card" id="weekly-overview">
+                    <header class="dashboard-card__header">
+                      <h3>Weekly Overview</h3>
+                    </header>
+                    <div class="card-body" id="weekly-arc"></div>
+                    <div class="card-split">
+                      <div>
+                        <span>Opportunity</span>
+                        <p id="weekly-opportunity"></p>
+                      </div>
+                      <div>
+                        <span>Caution</span>
+                        <p id="weekly-caution"></p>
+                      </div>
+                    </div>
+                    <div class="card-split">
+                      <div>
+                        <span>Decisions</span>
+                        <p id="weekly-best-decisions"></p>
+                      </div>
+                      <div>
+                        <span>Conversations</span>
+                        <p id="weekly-best-conversations"></p>
+                      </div>
+                      <div>
+                        <span>Rest</span>
+                        <p id="weekly-best-rest"></p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="glass-card dashboard-card" id="monthly-highlights">
+                    <header class="dashboard-card__header">
+                      <h3>Monthly Highlights</h3>
+                    </header>
+                    <p class="card-body"><strong id="monthly-theme"></strong></p>
+                    <ul class="date-list" id="monthly-dates"></ul>
+                    <p class="card-body" id="monthly-newmoon"></p>
+                    <p class="card-body" id="monthly-fullmoon"></p>
+                    <p class="card-body emphasis" id="monthly-onething"></p>
+                  </section>
+
+                  <section class="glass-card dashboard-card" id="year-overview">
+                    <header class="dashboard-card__header">
+                      <h3>Yearly Outlook</h3>
+                    </header>
+                    <p class="card-body" id="year-headline"></p>
+                    <ul class="date-list" id="year-quarters"></ul>
+                    <p class="card-body"><strong>Power months:</strong> <span id="year-power"></span></p>
+                    <p class="card-body"><strong>Challenge:</strong> <span id="year-challenge"></span></p>
+                  </section>
+                </div>
+              </div>
+
+              <div class="archive-modal" id="archive-modal" aria-hidden="true">
+                <div class="archive-modal__backdrop" role="presentation"></div>
+                <div class="archive-modal__card" role="dialog" aria-modal="true">
+                  <div class="archive-modal__header">
+                    <h3>Archive</h3>
+                    <button class="ghost-button" id="archive-close" type="button">
+                      Close
+                    </button>
+                  </div>
+                  <div class="archive-modal__body" id="archive-list"></div>
                 </div>
               </div>
             </div>

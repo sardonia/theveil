@@ -1,8 +1,8 @@
 import type { AppState } from "../domain/types";
 import { DEFAULT_PROFILE } from "../domain/constants";
 
-const SNAPSHOT_VERSION = 1;
-const SNAPSHOT_KEY = "veil.snapshot.v1";
+const SNAPSHOT_VERSION = 2;
+const SNAPSHOT_KEY = "veil.snapshot.v2";
 
 interface Snapshot {
   version: number;
@@ -23,6 +23,7 @@ export function getDefaultState(): AppState {
     reading: {
       current: null,
       history: [],
+      error: null,
     },
     ui: {
       route: "welcome",
@@ -61,15 +62,16 @@ export function saveSnapshot(state: AppState) {
 }
 
 function migrateSnapshot(snapshot: Snapshot): AppState {
-  if (snapshot.version === 1) {
-    return reviveDates(snapshot.state);
-  }
   return getDefaultState();
 }
 
 function normalizeLoadedState(state: AppState): AppState {
   return {
     ...state,
+    reading: {
+      ...state.reading,
+      error: null,
+    },
     ui: {
       ...state.ui,
       route: "welcome",
@@ -94,6 +96,7 @@ function reviveDates(state: AppState): AppState {
       ...state.reading,
       current: state.reading.current ? { ...state.reading.current } : null,
       history: state.reading.history.map((reading) => ({ ...reading })),
+      error: state.reading.error ?? null,
     },
   };
 }
