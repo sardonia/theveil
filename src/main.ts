@@ -334,8 +334,6 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   };
 
-  window.addEventListener("blur", closeSplashscreen, { once: true });
-
   populateSelects();
   debugLog("log", "populateSelects:done", {
     moodOptions: document.querySelectorAll("#mood-input option").length,
@@ -363,6 +361,9 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   requestAnimationFrame(() => {
+    window.setTimeout(() => {
+      closeSplashscreen();
+    }, 300);
     window.setTimeout(() => {
       initModel();
       debugLog("log", "initModel:started");
