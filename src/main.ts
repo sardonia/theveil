@@ -354,6 +354,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
   requestAnimationFrame(() => {
     window.setTimeout(() => {
+      void closeSplashscreen();
+    }, 300);
+    window.setTimeout(() => {
       initModel();
       debugLog("log", "initModel:started");
     }, 0);
