@@ -1,5 +1,6 @@
 import type { DashboardPayload, ProfileDraft } from "../../domain/types";
 import { zodiacSign } from "../../domain/zodiac";
+import { debugLog, isDebugEnabled } from "../../debug/logger";
 
 const ratingLabels: Array<keyof DashboardPayload["today"]["ratings"]> = [
   "love",
@@ -63,6 +64,15 @@ export function renderDashboard(
   const errorEl = document.querySelector<HTMLElement>("#dashboard-error");
 
   if (!payload) {
+    if (isDebugEnabled()) {
+      debugLog("warn", "renderDashboard:missingPayload", {
+        hasProfile: Boolean(profile),
+        hasError: Boolean(error),
+        hasHeadline: Boolean(headlineEl),
+        hasSections: Boolean(sectionsEl),
+        hasRatings: Boolean(ratingsEl),
+      });
+    }
     if (headlineEl) headlineEl.textContent = "";
     if (subheadEl) subheadEl.textContent = "";
     if (sectionsEl) sectionsEl.innerHTML = "";
@@ -222,6 +232,15 @@ export function renderDashboard(
     yearChallengeEl.textContent = `${payload.year.challengeMonth.month}: ${payload.year.challengeMonth.guidance}`;
   }
   if (errorEl) errorEl.textContent = "";
+
+  if (isDebugEnabled()) {
+    debugLog("log", "renderDashboard:complete", {
+      dateISO: payload.meta.dateISO,
+      sign: payload.meta.sign,
+      sectionCount: payload.today.sections.length,
+      hasError: Boolean(error),
+    });
+  }
 }
 
 function renderStars(count: number) {
