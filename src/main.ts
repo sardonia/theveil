@@ -325,10 +325,16 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // Helpful startup diagnostics (especially for WKWebView issues).
   debugLog("log", "UserAgent", navigator.userAgent);
+  let splashscreenClosed = false;
+  const closeSplashscreen = () => {
+    if (splashscreenClosed) return;
+    splashscreenClosed = true;
+    invoke("close_splashscreen").catch((error) => {
+      debugLog("warn", "closeSplashscreen:failed", error);
+    });
+  };
 
-  invoke("close_splashscreen").catch((error) => {
-    debugLog("warn", "closeSplashscreen:failed", error);
-  });
+  window.addEventListener("blur", closeSplashscreen, { once: true });
 
   populateSelects();
   debugLog("log", "populateSelects:done", {
