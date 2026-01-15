@@ -43,9 +43,9 @@ export function loadSnapshot(): AppState {
     }
     const parsed = JSON.parse(raw) as Snapshot;
     if (parsed.version !== SNAPSHOT_VERSION) {
-      return migrateSnapshot(parsed);
+      return normalizeLoadedState(migrateSnapshot(parsed));
     }
-    return reviveDates(parsed.state);
+    return normalizeLoadedState(reviveDates(parsed.state));
   } catch {
     return getDefaultState();
   }
@@ -65,6 +65,21 @@ function migrateSnapshot(snapshot: Snapshot): AppState {
     return reviveDates(snapshot.state);
   }
   return getDefaultState();
+}
+
+function normalizeLoadedState(state: AppState): AppState {
+  return {
+    ...state,
+    ui: {
+      ...state.ui,
+      route: "welcome",
+      busyFlags: {
+        ...state.ui.busyFlags,
+        generating: false,
+      },
+      toasts: [],
+    },
+  };
 }
 
 function reviveDates(state: AppState): AppState {
