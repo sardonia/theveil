@@ -63,6 +63,10 @@ export class ValidatePayloadStep implements PipelineStep {
     if (!context.payloadJson) return;
     const result = parseDashboardPayload(context.payloadJson);
     if (!result.valid) {
+      debugModelLog("error", "pipeline:payload:invalid", {
+        error: result.error,
+        payloadJson: context.payloadJson,
+      });
       throw new Error(result.error);
     }
     context.payload = result.payload;
