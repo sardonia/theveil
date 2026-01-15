@@ -663,9 +663,22 @@ pub fn run() {
         .setup(|app| {
             let splash = app.get_webview_window("splashscreen");
             let main = app.get_webview_window("main");
+            let app_handle = app.handle();
 
             if let Some(splash_window) = &splash {
                 let _ = splash_window.show();
+            }
+            if let Some(main_window) = &main {
+                let app_handle = app_handle.clone();
+                main_window.on_page_load(move |_window, _| {
+                    if let Some(splash_window) = app_handle.get_webview_window("splashscreen") {
+                        let _ = splash_window.close();
+                    }
+                    if let Some(main_window) = app_handle.get_webview_window("main") {
+                        let _ = main_window.show();
+                        let _ = main_window.set_focus();
+                    }
+                });
             }
 
             Ok(())
