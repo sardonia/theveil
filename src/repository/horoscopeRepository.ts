@@ -13,6 +13,8 @@ type StreamEvent =
 
 const STREAM_CHUNK_SIZE = 28;
 const STREAM_CHUNK_DELAY_MS = 40;
+const isTauriRuntime = () =>
+  typeof window !== "undefined" && "__TAURI__" in window;
 
 export class HoroscopeRepository {
   private embeddedAdapter: HoroscopeAdapter;
@@ -70,7 +72,10 @@ export class HoroscopeRepository {
 }
 
 async function emitStreamEvent(event: StreamEvent) {
-  await emit("reading:stream", event);
+  if (isTauriRuntime()) {
+    await emit("reading:stream", event);
+    return;
+  }
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("reading:stream-local", { detail: event }));
   }
