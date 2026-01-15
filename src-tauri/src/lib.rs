@@ -664,15 +664,17 @@ pub fn run() {
         .manage(ModelManager::new())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            if let Some(splash) = app.get_webview_window("splashscreen") {
-                let _ = splash.show();
+            let splash = app.get_webview_window("splashscreen");
+            let main = app.get_webview_window("main");
+
+            if let Some(splash_window) = &splash {
+                let _ = splash_window.show();
             }
-            if let Some(main) = app.get_webview_window("main") {
-                let _ = main.hide();
-            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            close_splashscreen,
             init_model,
             model_status,
             generate_horoscope,
@@ -680,4 +682,15 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn close_splashscreen(app: tauri::AppHandle) {
+    if let Some(splash_window) = app.get_webview_window("splashscreen") {
+        let _ = splash_window.close();
+    }
+    if let Some(main_window) = app.get_webview_window("main") {
+        let _ = main_window.show();
+        let _ = main_window.set_focus();
+    }
 }

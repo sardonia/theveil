@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Loading…</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
+        font-weight: 400;
+        color: #f5f7ff;
+        background-color: #0b0b15;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        background: radial-gradient(
+            circle at top left,
+            rgba(122, 160, 255, 0.18),
+            transparent 50%
+          ),
+          linear-gradient(135deg, rgba(9, 9, 24, 0.96), rgba(6, 6, 20, 0.98));
+      }
+
+      .app-loading__card {
+        width: min(520px, 90vw);
+        padding: 2.5rem;
+        border-radius: 28px;
+        background: rgba(12, 16, 32, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 18px 60px rgba(6, 8, 24, 0.6);
+        text-align: center;
+        color: rgba(255, 255, 255, 0.92);
+      }
+
+      .app-loading__eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.32em;
+        font-size: 0.65rem;
+        color: rgba(124, 189, 255, 0.8);
+        margin: 0 0 0.6rem;
+      }
+
+      .app-loading__title {
+        margin: 0 0 0.8rem;
+        font-size: 2rem;
+      }
+
+      .app-loading__status {
+        margin: 0 0 1.2rem;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .app-loading__progress {
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+      }
+
+      .app-loading__bar {
+        height: 100%;
+        width: 65%;
+        border-radius: inherit;
+        background: linear-gradient(
+          90deg,
+          rgba(140, 120, 255, 0.7),
+          rgba(96, 192, 255, 0.9)
+        );
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          transform: translateX(-20%);
+          opacity: 0.7;
+        }
+        50% {
+          transform: translateX(0%);
+          opacity: 1;
+        }
+        100% {
+          transform: translateX(20%);
+          opacity: 0.7;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-loading__card" aria-live="polite">
+      <p class="app-loading__eyebrow">Veil</p>
+      <h1 class="app-loading__title">Weaving your stars</h1>
+      <p class="app-loading__status">Preparing the star map…</p>
+      <div class="app-loading__progress">
+        <div class="app-loading__bar"></div>
+      </div>
+    </div>
+  </body>
+</html>
