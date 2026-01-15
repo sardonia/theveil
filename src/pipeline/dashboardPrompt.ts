@@ -114,6 +114,8 @@ export function buildDashboardPrompt(context: PromptContext): string {
     "OUTPUT RULES:",
     "- Output valid JSON only. No trailing commas.",
     "- Strings must be short and UI-friendly.",
+    "- Today's headline, subhead, and sections must read like a professional daily horoscope.",
+    "- Today subhead should be 1–2 sentences; each section body should be 1–2 sentences.",
     "- Ratings are integers 0–5.",
     "- energyScore is 0–100.",
     "- bestHours: provide exactly 2 windows with start/end like \"9:00 AM\".",
