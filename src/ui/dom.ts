@@ -328,8 +328,6 @@ export function renderBusy(isGenerating: boolean) {
   copy.disabled = isGenerating;
 }
 
-const streamTargets = new Map<HTMLElement, Text>();
-
 function getStreamTargets() {
   const targets: HTMLElement[] = [];
   const loadingStream = document.querySelector<HTMLElement>("#reading-stream");
@@ -345,9 +343,6 @@ export function resetReadingStream() {
   readingStreamBuffer = "";
   targets.forEach((target) => {
     target.textContent = "";
-    const node = document.createTextNode("");
-    target.appendChild(node);
-    streamTargets.set(target, node);
   });
 }
 
@@ -356,14 +351,7 @@ export function appendReadingStream(chunk: string) {
   if (targets.length === 0) return;
   readingStreamBuffer += chunk;
   targets.forEach((target) => {
-    let node = streamTargets.get(target);
-    if (!node || node.parentNode !== target) {
-      node = document.createTextNode(target.textContent ?? "");
-      target.textContent = "";
-      target.appendChild(node);
-      streamTargets.set(target, node);
-    }
-    node.data += chunk;
+    target.textContent = readingStreamBuffer;
   });
 }
 
