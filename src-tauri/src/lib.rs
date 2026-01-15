@@ -663,6 +663,15 @@ pub fn run() {
     tauri::Builder::default()
         .manage(ModelManager::new())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            if let Some(splash) = app.get_webview_window("splashscreen") {
+                let _ = splash.show();
+            }
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.hide();
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             init_model,
             model_status,
