@@ -31,12 +31,22 @@
         display: grid;
         place-items: center;
         padding: 2rem;
+        position: relative;
+        overflow: hidden;
         background: radial-gradient(
             circle at top left,
             rgba(122, 160, 255, 0.18),
             transparent 50%
           ),
           linear-gradient(135deg, rgba(9, 9, 24, 0.96), rgba(6, 6, 20, 0.98));
+      }
+
+      #splash-canvas {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
       }
 
       .app-loading__card {
@@ -48,6 +58,8 @@
         box-shadow: 0 18px 60px rgba(6, 8, 24, 0.6);
         text-align: center;
         color: rgba(255, 255, 255, 0.92);
+        position: relative;
+        z-index: 1;
       }
 
       .app-loading__eyebrow {
@@ -104,6 +116,7 @@
     </style>
   </head>
   <body>
+    <canvas id="splash-canvas" aria-hidden="true"></canvas>
     <div class="app-loading__card" aria-live="polite">
       <p class="app-loading__eyebrow">Veil</p>
       <h1 class="app-loading__title">Weaving your stars</h1>
@@ -112,5 +125,105 @@
         <div class="app-loading__bar"></div>
       </div>
     </div>
+    <script>
+      const canvas = document.querySelector("#splash-canvas");
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+        let width = 0;
+        let height = 0;
+        let stars = [];
+        let clouds = [];
+
+        const resize = () => {
+          const nextWidth = Math.max(1, Math.round(canvas.clientWidth));
+          const nextHeight = Math.max(1, Math.round(canvas.clientHeight));
+          if (nextWidth === width && nextHeight === height) return;
+          width = nextWidth;
+          height = nextHeight;
+          const scale = window.devicePixelRatio || 1;
+          canvas.width = width * scale;
+          canvas.height = height * scale;
+          ctx.setTransform(scale, 0, 0, scale, 0, 0);
+          const targetCount = Math.floor((width * height) / 6000);
+          stars = Array.from({ length: targetCount }, () => createStar(width, height));
+          clouds = Array.from({ length: 5 }, () => createCloud(width, height));
+        };
+
+        const createStar = (fieldWidth, fieldHeight) => ({
+          x: Math.random() * fieldWidth,
+          y: Math.random() * fieldHeight,
+          radius: Math.random() * 1.8 + 0.3,
+          alpha: Math.random() * 0.8 + 0.2,
+          twinkle: Math.random() * Math.PI * 2,
+          speed: Math.random() * 0.04 + 0.01,
+        });
+
+        const createCloud = (fieldWidth, fieldHeight) => ({
+          x: Math.random() * fieldWidth,
+          y: Math.random() * fieldHeight,
+          radius: Math.random() * 220 + 260,
+          hue: Math.random() * 40 + 210,
+          alpha: Math.random() * 0.18 + 0.12,
+          drift: Math.random() * 0.4 + 0.2,
+          phase: Math.random() * Math.PI * 2,
+        });
+
+        const drawNebula = (time) => {
+          for (const cloud of clouds) {
+            const pulse = 0.7 + Math.sin(time * 0.0006 + cloud.phase) * 0.3;
+            const gradient = ctx.createRadialGradient(
+              cloud.x,
+              cloud.y,
+              0,
+              cloud.x,
+              cloud.y,
+              cloud.radius
+            );
+            gradient.addColorStop(
+              0,
+              `hsla(${cloud.hue}, 70%, 65%, ${cloud.alpha * pulse})`
+            );
+            gradient.addColorStop(1, "hsla(240, 60%, 12%, 0)");
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(cloud.x, cloud.y, cloud.radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        };
+
+        const drawStars = (time) => {
+          const shouldTwinkle = !prefersReducedMotion.matches;
+          for (const star of stars) {
+            if (shouldTwinkle) {
+              star.twinkle += star.speed;
+            }
+            const glow = 0.55 + Math.sin(star.twinkle + time * 0.0004) * 0.45;
+            ctx.beginPath();
+            ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha * glow})`;
+            ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        };
+
+        const render = (time) => {
+          ctx.clearRect(0, 0, width, height);
+          drawNebula(time);
+          drawStars(time);
+          if (!prefersReducedMotion.matches) {
+            requestAnimationFrame(render);
+          }
+        };
+
+        resize();
+        render(0);
+        window.addEventListener("resize", () => {
+          resize();
+          if (prefersReducedMotion.matches) {
+            render(0);
+          }
+        });
+      }
+    </script>
   </body>
 </html>
