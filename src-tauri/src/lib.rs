@@ -414,7 +414,7 @@ impl Default for SamplingParams {
             top_k: 50,
             repeat_penalty: 1.1,
             // Dashboard JSON is large; low token limits frequently truncate output.
-            max_tokens: 3000,
+            max_tokens: 3600,
             seed: None,
             stop: vec![],
         }

@@ -4,6 +4,7 @@ import type { HoroscopeAdapter } from "../adapters/modelAdapter";
 import { EmbeddedModelAdapter } from "../adapters/modelAdapter";
 import { StubAdapter } from "../adapters/stubAdapter";
 import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
+import { store } from "../app/runtime";
 import { debugModelLog } from "../debug/logger";
 import { showToast } from "../ui/feedback/toast";
 
@@ -34,7 +35,27 @@ export class HoroscopeRepository {
       date,
       hasPrompt: Boolean(prompt),
     });
-    if (status.status === "loaded") {
+    let effectiveStatus = status;
+    if (status.status === "loading" || status.status === "unloaded") {
+      if (!isTauriRuntime()) {
+        debugModelLog("warn", "repository:generate:using:stub", {
+          reason: status.status,
+        });
+        const payload = await this.emitStubStream(profile, date, sampling);
+        debugModelLog("log", "repository:generate:complete", {
+          source: "stub",
+          durationMs: Math.round(performance.now() - startedAt),
+          payloadLength: payload.length,
+        });
+        return payload;
+      }
+      debugModelLog("log", "repository:generate:wait:model", {
+        status,
+      });
+      effectiveStatus = await waitForModelReady();
+    }
+
+    if (effectiveStatus.status === "loaded") {
       try {
         debugModelLog("log", "repository:generate:using:model");
         const payload = await this.embeddedAdapter.generate(
@@ -67,7 +88,7 @@ export class HoroscopeRepository {
       }
     }
     debugModelLog("warn", "repository:generate:using:stub", {
-      reason: status.status,
+      reason: effectiveStatus.status,
     });
     const payload = await this.emitStubStream(profile, date, sampling);
     debugModelLog("log", "repository:generate:complete", {
@@ -93,6 +114,25 @@ export class HoroscopeRepository {
     });
     return reading;
   }
+}
+
+function waitForModelReady(): Promise<ModelStatus> {
+  return new Promise((resolve) => {
+    const current = store.getState().model.status;
+    if (current.status === "loaded" || current.status === "error") {
+      resolve(current);
+      return;
+    }
+    const unsubscribe = store.subscribe(
+      (state) => state.model.status,
+      (next) => {
+        if (next.status === "loaded" || next.status === "error") {
+          unsubscribe();
+          resolve(next);
+        }
+      }
+    );
+  });
 }
 
 async function emitStreamEvent(event: StreamEvent) {
