@@ -347,6 +347,10 @@ window.addEventListener("DOMContentLoaded", () => {
   // Helpful startup diagnostics (especially for WKWebView issues).
   debugLog("log", "UserAgent", navigator.userAgent);
 
+  invoke("close_splashscreen").catch((error) => {
+    debugLog("warn", "closeSplashscreen:failed", error);
+  });
+
   populateSelects();
   debugLog("log", "populateSelects:done", {
     moodOptions: document.querySelectorAll("#mood-input option").length,

@@ -13,11 +13,24 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "the-veil",
+        "label": "main",
+        "title": "Veil",
         "width": 1100,
-        "height": 950,
+        "height": 735,
         "minWidth": 1100,
-        "minHeight": 950
+        "minHeight": 735,
+        "visible": false
+      },
+      {
+        "label": "splashscreen",
+        "title": "Loading…",
+        "width": 400,
+        "height": 300,
+        "decorations": false,
+        "resizable": false,
+        "center": true,
+        "url": "/splash.html",
+        "alwaysOnTop": true
       }
     ],
     "security": {
