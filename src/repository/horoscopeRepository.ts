@@ -5,6 +5,7 @@ import { EmbeddedModelAdapter } from "../adapters/modelAdapter";
 import { StubAdapter } from "../adapters/stubAdapter";
 import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
 import { debugModelLog } from "../debug/logger";
+import { showToast } from "../ui/feedback/toast";
 
 const STREAM_CHUNK_SIZE = 28;
 const STREAM_CHUNK_DELAY_MS = 40;
@@ -48,11 +49,15 @@ export class HoroscopeRepository {
           payloadLength: payload.length,
         });
         return payload;
-      } catch {
+      } catch (error) {
         debugModelLog("warn", "repository:generate:model:error", {
-          message: "Model adapter failed. Falling back to stub.",
+          message: "Model adapter failed. Falling back to offline reading.",
+          error,
         });
-        const payload = await this.stubAdapter.generate(profile, date);
+        showToast(
+          "Local model couldn't generate a reading — using offline mode for now."
+        );
+        const payload = await this.stubAdapter.generate(profile, date, sampling);
         debugModelLog("log", "repository:generate:complete", {
           source: "stub-fallback",
           durationMs: Math.round(performance.now() - startedAt),
@@ -64,7 +69,7 @@ export class HoroscopeRepository {
     debugModelLog("warn", "repository:generate:using:stub", {
       reason: status.status,
     });
-    const payload = await this.emitStubStream(profile, date);
+    const payload = await this.emitStubStream(profile, date, sampling);
     debugModelLog("log", "repository:generate:complete", {
       source: "stub",
       durationMs: Math.round(performance.now() - startedAt),
@@ -73,10 +78,14 @@ export class HoroscopeRepository {
     return payload;
   }
 
-  private async emitStubStream(profile: ProfileDraft, date: string) {
+  private async emitStubStream(
+    profile: ProfileDraft,
+    date: string,
+    sampling: SamplingParams
+  ) {
     debugModelLog("log", "repository:stream:stub:start");
     await emitStreamEvent({ kind: "start" });
-    const reading = await this.stubAdapter.generate(profile, date);
+    const reading = await this.stubAdapter.generate(profile, date, sampling);
     await streamMessage(reading);
     await emitStreamEvent({ kind: "end" });
     debugModelLog("log", "repository:stream:stub:end", {

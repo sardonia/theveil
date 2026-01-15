@@ -7,9 +7,23 @@ type ValidationResult =
 const sectionTitles = new Set(["Focus", "Relationships", "Action", "Reflection"]);
 const transitTones = new Set(["soft", "neutral", "intense"]);
 const quarterLabels = new Set(["Q1", "Q2", "Q3", "Q4"]);
+const PLACEHOLDER_TOKEN = "__FILL";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+function containsUnresolvedPlaceholders(value: unknown): boolean {
+  if (typeof value === "string") {
+    return value.includes(PLACEHOLDER_TOKEN);
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) => containsUnresolvedPlaceholders(item));
+  }
+  if (isRecord(value)) {
+    return Object.values(value).some((item) => containsUnresolvedPlaceholders(item));
+  }
+  return false;
+}
 
 const isString = (value: unknown): value is string => typeof value === "string";
 const isNumber = (value: unknown): value is number =>
@@ -74,6 +88,11 @@ export function parseDashboardPayload(json: string): ValidationResult {
 
   if (!isRecord(raw)) {
     return errorResult("Payload root must be an object.");
+  }
+
+  // If the model ...
+  if (containsUnresolvedPlaceholders(raw)) {
+    return errorResult("Payload contains unresolved placeholders.");
   }
 
   const meta = raw.meta;

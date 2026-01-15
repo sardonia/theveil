@@ -30,11 +30,32 @@ export class EmbeddedModelAdapter implements HoroscopeAdapter {
       },
     });
     try {
-      const payloadJson = await invoke<string>("generate_dashboard_payload", {
-        profile,
-        date,
-        prompt,
-        sampling,
+      const startedAt = performance.now();
+      const timeoutMs = 180_000; // 3 minutes - big local GGUF models can be slow on first run.
+      const logIntervalMs = 5_000;
+
+      let logInterval: number | null = null;
+      logInterval = window.setInterval(() => {
+        const elapsedMs = Math.round(performance.now() - startedAt);
+        debugModelLog("log", "adapter:model:waiting", { elapsedMs });
+      }, logIntervalMs);
+
+      const payloadJson = await Promise.race([
+        invoke<string>("generate_dashboard_payload", {
+          profile,
+          date,
+          prompt,
+          sampling,
+        }),
+        new Promise<string>((_, reject) => {
+          window.setTimeout(() => {
+            reject(new Error(`Model generation timed out after ${Math.round(timeoutMs / 1000)}s.`));
+          }, timeoutMs);
+        }),
+      ]).finally(() => {
+        if (logInterval !== null) {
+          window.clearInterval(logInterval);
+        }
       });
       debugModelLog("log", "adapter:model:response", {
         payloadLength: payloadJson.length,

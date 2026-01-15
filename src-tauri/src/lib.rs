@@ -145,7 +145,7 @@ impl HoroscopeModelBackend for StubBackend {
 pub struct EmbeddedBackend {
     model_path: PathBuf,
     model_size_bytes: u64,
-    model: MistralModel,
+    model: Arc<MistralModel>,
 }
 
 impl EmbeddedBackend {
@@ -234,9 +234,36 @@ impl EmbeddedBackend {
         Ok(Self {
             model_path,
             model_size_bytes: metadata.len(),
-            model,
+            model: Arc::new(model),
         })
     }
+}
+
+async fn send_chat_request_blocking(
+    model: Arc<MistralModel>,
+    request_builder: RequestBuilder,
+) -> Result<String, String> {
+    let started_at = std::time::Instant::now();
+    let join = tauri::async_runtime::spawn_blocking(move || {
+        let result = tauri::async_runtime::block_on(async {
+            model
+                .send_chat_request(request_builder)
+                .await
+                .map_err(|error| error.to_string())
+        });
+        result
+    });
+    let response = join
+        .await
+        .map_err(|error| format!("Model task join failed: {}", error))??;
+    let elapsed_ms = started_at.elapsed().as_millis();
+    eprintln!("[Veil] model:invoke:complete durationMs={}", elapsed_ms);
+    let content = response
+        .choices
+        .get(0)
+        .and_then(|choice| choice.message.content.clone())
+        .ok_or_else(|| "Model returned empty content.".to_string())?;
+    Ok(content)
 }
 
 fn to_mistral_sampling_params(params: &SamplingParams) -> MistralSamplingParams {
@@ -291,17 +318,7 @@ impl HoroscopeModelBackend for EmbeddedBackend {
             .add_message(TextMessageRole::User, prompt)
             .set_sampling(mistral_sampling);
 
-        let response = self
-            .model
-            .send_chat_request(request_builder)
-            .await
-            .map_err(|error| error.to_string())?;
-        let content = response
-            .choices
-            .get(0)
-            .and_then(|choice| choice.message.content.clone())
-            .ok_or_else(|| "Model returned empty content.".to_string())?;
-        Ok(content)
+        send_chat_request_blocking(self.model.clone(), request_builder).await
     }
 
     async fn generate_dashboard_json(
@@ -321,17 +338,7 @@ impl HoroscopeModelBackend for EmbeddedBackend {
             .add_message(TextMessageRole::User, prompt)
             .set_sampling(mistral_sampling);
 
-        let response = self
-            .model
-            .send_chat_request(request_builder)
-            .await
-            .map_err(|error| error.to_string())?;
-        let content = response
-            .choices
-            .get(0)
-            .and_then(|choice| choice.message.content.clone())
-            .ok_or_else(|| "Model returned empty content.".to_string())?;
-        Ok(content)
+        send_chat_request_blocking(self.model.clone(), request_builder).await
     }
 }
 

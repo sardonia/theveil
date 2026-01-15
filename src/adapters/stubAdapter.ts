@@ -1,12 +1,18 @@
-import type { DashboardPayload, ProfileDraft } from "../domain/types";
+import type { DashboardPayload, ProfileDraft, SamplingParams } from "../domain/types";
 import { debugModelLog } from "../debug/logger";
 import { zodiacSign } from "../domain/zodiac";
 
 export class StubAdapter {
-  async generate(profile: ProfileDraft, dateISO: string): Promise<string> {
+  async generate(
+    profile: ProfileDraft,
+    dateISO: string,
+    sampling?: SamplingParams
+  ): Promise<string> {
     const sign = zodiacSign(profile.birthdate);
     const seed = hashSeed(
-      `${profile.name}-${dateISO}-${sign}-${profile.mood}-${profile.personality}`
+      `${profile.name}-${dateISO}-${sign}-${profile.mood}-${profile.personality}-${
+        sampling?.seed ?? "noseed"
+      }`
     );
     const rng = seeded(seed);
     const [year, month, day] = dateISO.split("-").map((value) => Number(value));

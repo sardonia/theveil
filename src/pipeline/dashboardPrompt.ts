@@ -7,6 +7,7 @@ interface PromptContext {
   mood: string;
   personality: string;
   generatedAtISO: string;
+  seed?: number;
 }
 
 function buildDashboardTemplate(context: PromptContext): string {
@@ -131,6 +132,7 @@ export function buildDashboardPrompt(context: PromptContext): {
     `- Birthdate: ${context.birthdate}`,
     `- Sun sign: ${context.sign}`,
     `- Date: ${context.dateISO}`,
+    `- Seed: ${context.seed ?? ""}`,
     `- Mood: ${context.mood}`,
     `- Personality: ${context.personality}`,
     "",
@@ -183,6 +185,7 @@ export function buildRepairPrompt(
     `Birthdate: ${context.birthdate}`,
     `Sun sign: ${context.sign}`,
     `Date: ${context.dateISO}`,
+    `Seed: ${context.seed ?? ""}`,
     `Mood: ${context.mood}`,
     `Personality: ${context.personality}`,
     "",
