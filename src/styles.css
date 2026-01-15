@@ -268,6 +268,13 @@ body {
   z-index: 2;
 }
 
+#reading-view {
+  position: relative;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
+
 .glass-card {
   position: relative;
   /*
@@ -295,7 +302,8 @@ body {
 
 .glass-card--reading {
   gap: 1.4rem;
-  overflow: hidden;
+  overflow: visible;
+  height: auto;
 }
 
 .glass-card__glow {
@@ -480,7 +488,7 @@ body {
 .reading__body {
   display: grid;
   gap: 1.4rem;
-  overflow-y: auto;
+  overflow: visible;
   padding-right: 0.2rem;
 }
 
@@ -628,6 +636,11 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .spinner {
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
   }
 }
 
