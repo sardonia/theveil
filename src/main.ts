@@ -115,7 +115,6 @@ function initReadingStream() {
     flushHandle = window.setTimeout(flush, 33);
   };
 
-  const appWindow = getCurrentWindow();
   const handleStreamEvent = (payload: StreamEvent) => {
     if (payload.kind === "start") {
       buffer = "";
@@ -139,18 +138,34 @@ function initReadingStream() {
     flush();
   };
 
-  appWindow
-    .listen<StreamEvent>("reading:stream", (event) => {
-      handleStreamEvent(event.payload);
-    })
+  const appListener = listen<StreamEvent>("reading:stream", (event) => {
+    handleStreamEvent(event.payload);
+  })
     .then(() => {
-      debugLog("log", "initReadingStream:ready", { target: appWindow.label });
-      debugModelLog("log", "reading:stream:listener:ready", { target: appWindow.label });
+      debugLog("log", "initReadingStream:ready", { target: "app" });
+      debugModelLog("log", "reading:stream:listener:ready", { target: "app" });
     })
-    .catch((error) => {
+    .catch((error: unknown) => {
       debugLog("error", "initReadingStream:failed", error);
       debugModelLog("error", "reading:stream:listener:failed", error);
     });
+
+  const appWindow = getCurrentWindow();
+  const windowListener = appWindow
+    .listen<StreamEvent>("reading:stream", (event: { payload: StreamEvent }) => {
+      handleStreamEvent(event.payload);
+    })
+    .then(() => {
+      const label = appWindow.label;
+      debugLog("log", "initReadingStream:ready", { target: label });
+      debugModelLog("log", "reading:stream:listener:ready", { target: label });
+    })
+    .catch((error: unknown) => {
+      debugLog("error", "initReadingStream:failed", error);
+      debugModelLog("error", "reading:stream:listener:failed", error);
+    });
+
+  void Promise.allSettled([appListener, windowListener]);
 
   window.addEventListener("reading:stream-local", (event) => {
     const detail = (event as CustomEvent<StreamEvent>).detail;
