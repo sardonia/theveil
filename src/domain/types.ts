@@ -21,6 +21,11 @@ export interface SamplingParams {
   stop: string[];
 }
 
+export type StreamEvent =
+  | { kind: "start" }
+  | { kind: "chunk"; chunk: string }
+  | { kind: "end" };
+
 export interface ProfileDraft {
   name: string;
   birthdate: string;

@@ -1,14 +1,10 @@
-import type { ModelStatus, ProfileDraft } from "../domain/types";
+import { emit } from "@tauri-apps/api/event";
+import type { ModelStatus, ProfileDraft, StreamEvent } from "../domain/types";
 import type { HoroscopeAdapter } from "../adapters/modelAdapter";
 import { EmbeddedModelAdapter } from "../adapters/modelAdapter";
 import { StubAdapter } from "../adapters/stubAdapter";
 import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
 import { debugModelLog } from "../debug/logger";
-
-type StreamEvent =
-  | { kind: "start" }
-  | { kind: "chunk"; chunk: string }
-  | { kind: "end" };
 
 const STREAM_CHUNK_SIZE = 28;
 const STREAM_CHUNK_DELAY_MS = 40;
@@ -61,10 +57,10 @@ export class HoroscopeRepository {
     debugModelLog("log", "repository:stream:stub:start");
     await emitStreamEvent({ kind: "start" });
     const reading = await this.stubAdapter.generate(profile, date);
-    await streamMessage(reading.message);
+    await streamMessage(reading);
     await emitStreamEvent({ kind: "end" });
     debugModelLog("log", "repository:stream:stub:end", {
-      messageLength: reading.message.length,
+      messageLength: reading.length,
     });
     return reading;
   }
