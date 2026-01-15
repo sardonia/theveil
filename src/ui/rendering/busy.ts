@@ -25,6 +25,15 @@ export function renderBusy(isGenerating: boolean) {
     body.style.opacity = isGenerating ? "0.2" : "1";
     body.classList.toggle("is-loading", isGenerating);
   }
+
+  if (isDebugEnabled()) {
+    debugLog("log", "renderBusy:state", {
+      isGenerating,
+      loadingHidden: loading?.hidden,
+      bodyOpacity: body?.style.opacity,
+      bodyLoading: body?.classList.contains("is-loading"),
+    });
+  }
   if (regenerate) regenerate.disabled = isGenerating;
   if (edit) edit.disabled = isGenerating;
   if (copy) copy.disabled = isGenerating;

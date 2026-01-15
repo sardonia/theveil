@@ -81,6 +81,7 @@ export class CommandBus {
 
   private async handleGenerateReading() {
     const state = this.context.getState();
+    const startedAt = performance.now();
     debugLog("log", "command:GenerateReading:start", {
       hasProfile: Boolean(state.profile.saved),
       route: state.ui.route,
@@ -116,6 +117,9 @@ export class CommandBus {
           new Date().toISOString().slice(0, 10),
           this.context.getState()
         );
+        const durationMs = Math.round(performance.now() - startedAt);
+        debugLog("log", "command:GenerateReading:timing", { durationMs });
+        debugModelLog("log", "command:GenerateReading:timing", { durationMs });
         debugModelLog("log", "command:GenerateReading:success", {
           headline: reading.today.headline,
           sign: reading.meta.sign,
@@ -132,6 +136,15 @@ export class CommandBus {
         ]);
       } catch (error) {
         const message = error instanceof Error ? error.message : "The stars were quiet.";
+        const durationMs = Math.round(performance.now() - startedAt);
+        debugLog("error", "command:GenerateReading:timing", {
+          durationMs,
+          message,
+        });
+        debugModelLog("error", "command:GenerateReading:timing", {
+          durationMs,
+          message,
+        });
         debugLog("error", "command:GenerateReading:pipeline:error", error);
         debugModelLog("error", "command:GenerateReading:failed", { message, error });
         this.context.applyEvents([{ type: "ReadingGenerationFailed", error: message }]);

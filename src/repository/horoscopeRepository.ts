@@ -26,6 +26,7 @@ export class HoroscopeRepository {
     prompt: string | undefined,
     status: ModelStatus
   ): Promise<string> {
+    const startedAt = performance.now();
     debugModelLog("log", "repository:generate:start", {
       status,
       date,
@@ -34,23 +35,41 @@ export class HoroscopeRepository {
     if (status.status === "loaded") {
       try {
         debugModelLog("log", "repository:generate:using:model");
-        return await this.embeddedAdapter.generate(
+        const payload = await this.embeddedAdapter.generate(
           profile,
           date,
           prompt,
           DEFAULT_SAMPLING_PARAMS
         );
+        debugModelLog("log", "repository:generate:complete", {
+          source: "model",
+          durationMs: Math.round(performance.now() - startedAt),
+          payloadLength: payload.length,
+        });
+        return payload;
       } catch {
         debugModelLog("warn", "repository:generate:model:error", {
           message: "Model adapter failed. Falling back to stub.",
         });
-        return this.stubAdapter.generate(profile, date);
+        const payload = await this.stubAdapter.generate(profile, date);
+        debugModelLog("log", "repository:generate:complete", {
+          source: "stub-fallback",
+          durationMs: Math.round(performance.now() - startedAt),
+          payloadLength: payload.length,
+        });
+        return payload;
       }
     }
     debugModelLog("warn", "repository:generate:using:stub", {
       reason: status.status,
     });
-    return this.emitStubStream(profile, date);
+    const payload = await this.emitStubStream(profile, date);
+    debugModelLog("log", "repository:generate:complete", {
+      source: "stub",
+      durationMs: Math.round(performance.now() - startedAt),
+      payloadLength: payload.length,
+    });
+    return payload;
   }
 
   private async emitStubStream(profile: ProfileDraft, date: string) {

@@ -89,6 +89,17 @@ export function renderDashboard(
     bodyEl.classList.remove("is-loading");
   }
 
+  if (isDebugEnabled()) {
+    debugLog("log", "renderDashboard:payload", {
+      dateISO: payload.meta.dateISO,
+      sign: payload.meta.sign,
+      hasLoadingEl: Boolean(loadingEl),
+      loadingHidden: loadingEl?.hidden,
+      bodyOpacity: bodyEl?.style.opacity,
+      bodyLoading: bodyEl?.classList.contains("is-loading"),
+    });
+  }
+
   if (dateEl) dateEl.textContent = payload.meta.localeDateLabel;
   if (headlineEl) headlineEl.textContent = payload.today.headline;
   if (subheadEl) subheadEl.textContent = payload.today.subhead;
