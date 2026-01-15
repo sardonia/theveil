@@ -27,7 +27,7 @@ function renderInitial(state: AppState) {
   renderModelStatus(state.model.status);
   renderDashboard(state.reading.current, state.profile.saved, state.reading.error);
   renderBusy(state.ui.busyFlags.generating);
-  renderErrorToast(state.ui.errorMessage);
+  renderErrorToast(state.reading.error);
 }
 
 function bindSubscriptions() {
@@ -58,7 +58,7 @@ function bindSubscriptions() {
     (value) => renderBusy(value)
   );
   store.subscribe(
-    (state) => state.ui.errorMessage,
+    (state) => state.reading.error,
     (value) => renderErrorToast(value)
   );
   store.subscribe(
