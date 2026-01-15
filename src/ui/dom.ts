@@ -242,11 +242,12 @@ export function renderModelStatus(status: AppState["model"]["status"]) {
       if (!loadingShownAt) {
         loadingShownAt = Date.now();
       }
-      if (!loadedShownAt) {
-        loadedShownAt = Date.now();
+      if (loadingHideTimeout !== null) {
+        window.clearTimeout(loadingHideTimeout);
+        loadingHideTimeout = null;
       }
-      scheduleLoadingHide();
     }
+    loadedShownAt = null;
   } else {
     label.textContent = "Preparing the star map…";
     progress.style.width = "0%";
