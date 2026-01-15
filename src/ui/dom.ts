@@ -320,12 +320,15 @@ export function renderBusy(isGenerating: boolean) {
   const edit = document.querySelector<HTMLButtonElement>("#edit-profile");
   const copy = document.querySelector<HTMLButtonElement>("#copy-reading");
 
-  if (!loading || !body || !regenerate || !edit || !copy) return;
-  loading.hidden = !isGenerating;
-  body.style.opacity = isGenerating ? "0.2" : "1";
-  regenerate.disabled = isGenerating;
-  edit.disabled = isGenerating;
-  copy.disabled = isGenerating;
+  if (loading) {
+    loading.hidden = !isGenerating;
+  }
+  if (body) {
+    body.style.opacity = isGenerating ? "0.2" : "1";
+  }
+  if (regenerate) regenerate.disabled = isGenerating;
+  if (edit) edit.disabled = isGenerating;
+  if (copy) copy.disabled = isGenerating;
 }
 
 function getStreamTargets() {
@@ -339,7 +342,12 @@ function getStreamTargets() {
 
 export function resetReadingStream() {
   const targets = getStreamTargets();
-  if (targets.length === 0) return;
+  if (targets.length === 0) {
+    if (isDebugEnabled()) {
+      debugLog("warn", "reading:stream:targets:missing", { action: "reset" });
+    }
+    return;
+  }
   readingStreamBuffer = "";
   targets.forEach((target) => {
     target.textContent = "";
@@ -348,7 +356,12 @@ export function resetReadingStream() {
 
 export function appendReadingStream(chunk: string) {
   const targets = getStreamTargets();
-  if (targets.length === 0) return;
+  if (targets.length === 0) {
+    if (isDebugEnabled()) {
+      debugLog("warn", "reading:stream:targets:missing", { action: "append" });
+    }
+    return;
+  }
   readingStreamBuffer += chunk;
   targets.forEach((target) => {
     target.textContent = readingStreamBuffer;
