@@ -1,0 +1,21 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #f5f7ff;
+  background-color: #0b0b15;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --glass-bg: rgba(10, 12, 20, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --accent: #9b7dff;
+  --accent-soft: #8fd8ff;
+  --shadow: 0 24px 60px rgba(5, 7, 20, 0.5);
+  --surface: rgba(15, 18, 32, 0.72);
+  --surface-strong: rgba(10, 12, 26, 0.92);
+  --text-muted: rgba(245, 247, 255, 0.7);
+  --text-faint: rgba(245, 247, 255, 0.52);
+  --card-radius: 24px;
