@@ -7,23 +7,9 @@ type ValidationResult =
 const sectionTitles = new Set(["Focus", "Relationships", "Action", "Reflection"]);
 const transitTones = new Set(["soft", "neutral", "intense"]);
 const quarterLabels = new Set(["Q1", "Q2", "Q3", "Q4"]);
-const PLACEHOLDER_TOKEN = "__FILL";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
-
-function containsUnresolvedPlaceholders(value: unknown): boolean {
-  if (typeof value === "string") {
-    return value.includes(PLACEHOLDER_TOKEN);
-  }
-  if (Array.isArray(value)) {
-    return value.some((item) => containsUnresolvedPlaceholders(item));
-  }
-  if (isRecord(value)) {
-    return Object.values(value).some((item) => containsUnresolvedPlaceholders(item));
-  }
-  return false;
-}
 
 const isString = (value: unknown): value is string => typeof value === "string";
 const isNumber = (value: unknown): value is number =>
@@ -41,117 +27,6 @@ const inRange = (value: number, min: number, max: number) =>
 
 function errorResult(message: string): ValidationResult {
   return { valid: false, error: message };
-}
-
-function stripCodeFences(text: string): string {
-  // Some models wrap JSON in ```json fences despite instructions.
-  return text
-    .replace(/```(?:json)?\s*/gi, "")
-    .replace(/```\s*/g, "")
-    .trim();
-}
-
-function removeTrailingCommas(text: string): string {
-  // Common "almost JSON" error: trailing commas before } or ]
-  return text.replace(/,\s*([}\]])/g, "$1");
-}
-
-function quoteUnquotedKeys(text: string): string {
-  // Best-effort conversion from JS-object-literal style to strict JSON.
-  // Only runs when strict JSON.parse fails.
-  let out = "";
-  const stack: Array<"object" | "array"> = [];
-  let inString = false;
-  let escaped = false;
-  let expectKey = false;
-
-  const isIdentStart = (c: string) => /[A-Za-z_$]/.test(c);
-  const isIdent = (c: string) => /[A-Za-z0-9_$]/.test(c);
-
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i];
-
-    if (inString) {
-      out += ch;
-      if (escaped) {
-        escaped = false;
-      } else if (ch === "\\") {
-        escaped = true;
-      } else if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      inString = true;
-      out += ch;
-      continue;
-    }
-
-    if (ch === "{") {
-      stack.push("object");
-      expectKey = true;
-      out += ch;
-      continue;
-    }
-    if (ch === "[") {
-      stack.push("array");
-      expectKey = false;
-      out += ch;
-      continue;
-    }
-    if (ch === "}" || ch === "]") {
-      stack.pop();
-      expectKey = stack[stack.length - 1] === "object";
-      out += ch;
-      continue;
-    }
-    if (ch === ",") {
-      // Next token is a key if we're in an object.
-      expectKey = stack[stack.length - 1] === "object";
-      out += ch;
-      continue;
-    }
-    if (ch === ":") {
-      // After a colon we are expecting a value.
-      expectKey = false;
-      out += ch;
-      continue;
-    }
-
-    if (expectKey) {
-      // Skip whitespace while waiting for a key.
-      if (/\s/.test(ch)) {
-        out += ch;
-        continue;
-      }
-      // If already quoted, let it through.
-      if (ch === '"') {
-        inString = true;
-        out += ch;
-        continue;
-      }
-      // Quote bare identifiers used as keys.
-      if (isIdentStart(ch)) {
-        let j = i + 1;
-        while (j < text.length && isIdent(text[j])) j += 1;
-        const key = text.slice(i, j);
-        // Skip whitespace after key.
-        let k = j;
-        while (k < text.length && /\s/.test(text[k])) k += 1;
-        if (text[k] === ":") {
-          out += `"${key}"`;
-          i = k - 1; // allow ':' to be processed next loop
-          expectKey = false;
-          continue;
-        }
-      }
-    }
-
-    out += ch;
-  }
-  return out;
 }
 
 export function extractFirstJsonObject(text: string): string | null {
@@ -192,24 +67,13 @@ export function parseDashboardPayload(json: string): ValidationResult {
   try {
     raw = JSON.parse(json);
   } catch (error) {
-    // Try a best-effort cleanup path for common model mistakes.
-    try {
-      const cleaned = quoteUnquotedKeys(removeTrailingCommas(stripCodeFences(json)));
-      raw = JSON.parse(cleaned);
-    } catch {
-      return errorResult(
-        error instanceof Error ? error.message : "Invalid JSON returned by model."
-      );
-    }
+    return errorResult(
+      error instanceof Error ? error.message : "Invalid JSON returned by model."
+    );
   }
 
   if (!isRecord(raw)) {
     return errorResult("Payload root must be an object.");
-  }
-
-  // If the model ...
-  if (containsUnresolvedPlaceholders(raw)) {
-    return errorResult("Payload contains unresolved placeholders.");
   }
 
   const meta = raw.meta;

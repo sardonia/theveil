@@ -2,10 +2,9 @@ import type { AppState, DashboardPayload, ProfileDraft, SamplingParams } from ".
 import { HoroscopeRepository } from "../repository/horoscopeRepository";
 import { debugModelLog } from "../debug/logger";
 import { zodiacSign } from "../domain/zodiac";
-import { buildDashboardPrompt, buildRegeneratePrompt, buildRepairPrompt } from "./dashboardPrompt";
+import { buildDashboardPrompt, buildRepairPrompt } from "./dashboardPrompt";
 import { extractFirstJsonObject, parseDashboardPayload } from "../domain/dashboard";
 import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
-import { StubAdapter } from "../adapters/stubAdapter";
 
 export interface PipelineContext {
   profile: ProfileDraft;
@@ -31,7 +30,6 @@ export class BuildPromptStep implements PipelineStep {
       sign,
       localeDateLabel: context.localeDateLabel,
       dateISO: context.dateISO,
-      seed: context.sampling?.seed,
       mood: context.profile.mood,
       personality: context.profile.personality,
       generatedAtISO: new Date().toISOString(),
@@ -70,117 +68,70 @@ export class InvokeModelStep implements PipelineStep {
 
 export class ValidatePayloadStep implements PipelineStep {
   private repository: HoroscopeRepository;
-  private stub: StubAdapter;
 
   constructor(repository: HoroscopeRepository) {
     this.repository = repository;
-    this.stub = new StubAdapter();
   }
 
   async run(context: PipelineContext, state: AppState) {
     if (!context.payloadJson) return;
-
-    const buildPromptContext = () => ({
-      name: context.profile.name,
-      birthdate: context.profile.birthdate,
-      sign: zodiacSign(context.profile.birthdate),
-      localeDateLabel: context.localeDateLabel,
-      dateISO: context.dateISO,
-      seed: context.sampling?.seed,
-      mood: context.profile.mood,
-      personality: context.profile.personality,
-      generatedAtISO: new Date().toISOString(),
-    });
-
-    const bumpSampling = (sampling: SamplingParams | undefined, attempt: number): SamplingParams => {
-      const base = sampling ?? DEFAULT_SAMPLING_PARAMS;
-      const seed = base.seed == null ? null : ((base.seed + attempt * 1337) >>> 0);
-      // Increase token budget on retries; truncated JSON is the most common failure mode.
-      // Keep a generous upper bound for GGUF chat models. If the underlying
-      // backend treats maxTokens as a total sequence length (prompt + output),
-      // we need headroom for both.
-      const maxTokens = Math.min(base.maxTokens + attempt * 600, 5000);
-      return { ...base, seed, maxTokens };
-    };
-
-    const isTruncationError = (message: string) => {
-      const m = message.toLowerCase();
-      return (
-        m.includes("unexpected eof") ||
-        m.includes("unexpected end") ||
-        m.includes("end of json") ||
-        m.includes("unterminated")
-      );
-    };
-
-    const isSyntaxLikeError = (message: string) => {
-      const m = message.toLowerCase();
-      return m.includes("property name") || m.includes("string literal") || m.includes("invalid") || m.includes("unexpected token");
-    };
-
-    const tryParse = (payloadJson: string) => {
-      const extracted = extractFirstJsonObject(payloadJson);
-      const candidate = extracted ?? payloadJson;
-      return parseDashboardPayload(candidate);
-    };
-
-    // Try initial output + up to 2 retries.
-    let currentJson = context.payloadJson;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const result = tryParse(currentJson);
-      if (result.valid) {
-        context.payload = result.payload;
-        debugModelLog("log", attempt === 0 ? "pipeline:payload:validated" : "pipeline:payload:repair:validated", {
-          meta: result.payload.meta,
-          sections: result.payload.today.sections.length,
-          attempt,
-        });
-        return;
-      }
-
+    const extracted = extractFirstJsonObject(context.payloadJson);
+    const candidate = extracted ?? context.payloadJson;
+    const result = parseDashboardPayload(candidate);
+    if (!result.valid) {
       debugModelLog("warn", "pipeline:payload:invalid", {
         error: result.error,
-        attempt,
-        payloadLength: currentJson.length,
+        payloadJson: context.payloadJson,
       });
-
-      if (!context.templateJson) break;
-
-      // For truncation or raw JSON syntax errors, it is usually better to regenerate
-      // from the template rather than "repair" a cut-off blob.
-      const promptContext = buildPromptContext();
-      const nextSampling = bumpSampling(context.sampling, attempt + 1);
-      const nextPrompt =
-        isTruncationError(result.error) || isSyntaxLikeError(result.error)
-          ? buildRegeneratePrompt(promptContext, context.templateJson)
-          : buildRepairPrompt(promptContext, context.templateJson, currentJson);
-
+      if (!context.templateJson) {
+        throw new Error(result.error);
+      }
+      const repairPrompt = buildRepairPrompt(
+        {
+          name: context.profile.name,
+          birthdate: context.profile.birthdate,
+          sign: zodiacSign(context.profile.birthdate),
+          localeDateLabel: context.localeDateLabel,
+          dateISO: context.dateISO,
+          mood: context.profile.mood,
+          personality: context.profile.personality,
+          generatedAtISO: new Date().toISOString(),
+        },
+        context.templateJson,
+        context.payloadJson
+      );
       debugModelLog("log", "pipeline:payload:repair:start", {
-        attempt: attempt + 1,
-        mode: isTruncationError(result.error) || isSyntaxLikeError(result.error) ? "regenerate" : "repair",
-        maxTokens: nextSampling.maxTokens,
+        hasPrompt: Boolean(repairPrompt),
       });
-
-      currentJson = await this.repository.generate(
+      const repairedJson = await this.repository.generate(
         context.profile,
         context.dateISO,
-        nextPrompt,
+        repairPrompt,
         state.model.status,
-        nextSampling
+        context.sampling
       );
+      const repairedExtracted = extractFirstJsonObject(repairedJson);
+      const repairedCandidate = repairedExtracted ?? repairedJson;
+      const repairedResult = parseDashboardPayload(repairedCandidate);
+      if (!repairedResult.valid) {
+        debugModelLog("error", "pipeline:payload:repair:failed", {
+          error: repairedResult.error,
+          payloadJson: repairedJson,
+        });
+        throw new Error(repairedResult.error);
+      }
+      context.payload = repairedResult.payload;
+      debugModelLog("log", "pipeline:payload:repair:validated", {
+        meta: repairedResult.payload.meta,
+        sections: repairedResult.payload.today.sections.length,
+      });
+      return;
     }
-
-    // If the model keeps producing invalid JSON, fall back to the stub.
-    debugModelLog("error", "pipeline:payload:fallback:stub", {
-      reason: "Model produced invalid JSON after retries",
+    context.payload = result.payload;
+    debugModelLog("log", "pipeline:payload:validated", {
+      meta: result.payload.meta,
+      sections: result.payload.today.sections.length,
     });
-    const stubJson = await this.stub.generate(context.profile, context.dateISO, context.sampling);
-    const stubResult = tryParse(stubJson);
-    if (!stubResult.valid) {
-      // This should never happen, but fail loudly if it does.
-      throw new Error(stubResult.error);
-    }
-    context.payload = stubResult.payload;
   }
 }
 

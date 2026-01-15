@@ -7,7 +7,6 @@ interface PromptContext {
   mood: string;
   personality: string;
   generatedAtISO: string;
-  seed?: number;
 }
 
 function buildDashboardTemplate(context: PromptContext): string {
@@ -114,9 +113,7 @@ function buildDashboardTemplate(context: PromptContext): string {
     },
   };
 
-  // Keep the template compact to reduce prompt tokens and to encourage the model
-  // to emit compact JSON (helps avoid truncation).
-  return JSON.stringify(template);
+  return JSON.stringify(template, null, 2);
 }
 
 export function buildDashboardPrompt(context: PromptContext): {
@@ -125,38 +122,36 @@ export function buildDashboardPrompt(context: PromptContext): {
 } {
   const templateJson = buildDashboardTemplate(context);
   const prompt = [
-    // NOTE: We include a "role" here because many GGUF chat models follow the
-    // first instruction block strongly. The Rust backend also injects a system
-    // message, but keeping this here improves portability.
-    "ROLE:",
-    "You are Veil: a warm, feminine astrologer with a loving aura. You write premium, modern astrology — gentle, confident, and creative — without doom or medical/legal claims.",
+    "SYSTEM:",
+    "You output JSON only. No markdown. No extra keys.",
     "",
-    "OUTPUT CONTRACT (MUST FOLLOW):",
-    "- Return ONE JSON object only. No markdown. No commentary.",
-    "- Strict JSON: double-quote every property name and every string. No trailing commas. No comments.",
-    "- Use JSON numbers (not strings) for numeric fields.",
-    "- Output must be COMPACT (minified): no extra whitespace or newlines.",
-    "- Do not add or remove keys. Match TEMPLATE_JSON keys exactly.",
-    "- Keep each text value short (typically 6–18 words).",
+    "USER:",
+    "Create a calm, premium horoscope \"Cosmic Dashboard\" payload for:",
+    `- Name: ${context.name}`,
+    `- Birthdate: ${context.birthdate}`,
+    `- Sun sign: ${context.sign}`,
+    `- Date: ${context.dateISO}`,
+    `- Mood: ${context.mood}`,
+    `- Personality: ${context.personality}`,
     "",
-    "USER CONTEXT:",
-    `name=${context.name}`,
-    `birthdate=${context.birthdate}`,
-    `sunSign=${context.sign}`,
-    `dateISO=${context.dateISO}`,
-    `localeDateLabel=${context.localeDateLabel}`,
-    `mood=${context.mood}`,
-    `personality=${context.personality}`,
-    `seed=${context.seed ?? ""}`,
-    "",
-    "STRUCTURE RULES:",
-    "- today.bestHours: exactly 2 items",
-    "- month.keyDates: exactly 3 items",
-    "- year.quarters: exactly 4 items (Q1–Q4)",
-    "- cosmicWeather.transits: 0–2 items; tone is soft|neutral|intense",
+    "Rules:",
+    "- Output valid JSON only.",
+    "- Do not add or remove keys.",
+    "- Replace every placeholder value in the template below.",
+    "- Keep all strings UI-friendly: 1-2 sentences max where applicable.",
+    "- Numbers must respect placeholder constraints:",
+    "  - energyScore 0-100 (integer)",
+    "  - ratings 0-5 (integers)",
+    "  - Provide exactly 2 bestHours windows",
+    "  - Provide exactly 3 month.keyDates",
+    "  - Provide exactly 4 year.quarters",
+    "- transit tone must be \"soft\", \"neutral\", or \"intense\".",
+    "- No newlines inside strings. Use short sentences.",
     "",
     "TEMPLATE_JSON:",
     templateJson,
+    "",
+    "Output the completed JSON only.",
   ].join("\n");
 
   return { prompt, templateJson };
@@ -167,63 +162,36 @@ export function buildRepairPrompt(
   templateJson: string,
   modelOutput: string
 ): string {
-  // MODEL_OUTPUT can be very long (or even cut off). Keep a limited context
-  // window to avoid blowing the prompt budget.
-  const head = modelOutput.slice(0, 2200);
-  const tail = modelOutput.length > 2400 ? modelOutput.slice(-400) : "";
-  const snippet = tail ? `${head}\n...\n${tail}` : head;
-
   return [
-    "ROLE:",
-    "You are Veil: a warm, feminine astrologer. You fix JSON outputs with care and precision.",
+    "SYSTEM:",
+    "You output JSON only. No markdown.",
     "",
-    "TASK (MUST FOLLOW):",
-    "- Output STRICT JSON ONLY: quoted keys/strings, no trailing commas, no markdown.",
-    "- Produce ONE JSON object matching TEMPLATE_JSON keys exactly.",
-    "- Keep text short and soothing; ensure numeric fields are numbers.",
-    "- Output must be COMPACT (minified).",
+    "USER:",
+    "You will be given:",
+    "1) The required TEMPLATE_JSON (structure is correct)",
+    "2) A MODEL_OUTPUT that is supposed to match it but may be invalid JSON or missing keys.",
     "",
-    "USER CONTEXT:",
-    `name=${context.name}`,
-    `birthdate=${context.birthdate}`,
-    `sunSign=${context.sign}`,
-    `dateISO=${context.dateISO}`,
-    `localeDateLabel=${context.localeDateLabel}`,
-    `mood=${context.mood}`,
-    `personality=${context.personality}`,
-    `seed=${context.seed ?? ""}`,
+    "Task:",
+    "- Return valid JSON only.",
+    "- Make MODEL_OUTPUT conform exactly to TEMPLATE_JSON keys and types.",
+    "- Do not invent new keys.",
+    "- If a field is missing, fill it with a reasonable short value consistent with the user context.",
+    "- No commentary.",
+    "",
+    "User context:",
+    `Name: ${context.name}`,
+    `Birthdate: ${context.birthdate}`,
+    `Sun sign: ${context.sign}`,
+    `Date: ${context.dateISO}`,
+    `Mood: ${context.mood}`,
+    `Personality: ${context.personality}`,
     "",
     "TEMPLATE_JSON:",
     templateJson,
     "",
-    "MODEL_OUTPUT_SNIPPET:",
-    snippet,
-  ].join("\n");
-}
-
-export function buildRegeneratePrompt(context: PromptContext, templateJson: string): string {
-  return [
-    "ROLE:",
-    "You are Veil: a warm, feminine astrologer with a loving aura.",
+    "MODEL_OUTPUT:",
+    modelOutput,
     "",
-    "TASK (MUST FOLLOW):",
-    "- Return ONE STRICT JSON object only (quoted keys/strings, no trailing commas).",
-    "- Match TEMPLATE_JSON keys exactly. Do not add/remove keys.",
-    "- Use JSON numbers for numeric fields.",
-    "- Output must be COMPACT (minified).",
-    "- Keep each text value short (6–18 words).",
-    "",
-    "USER CONTEXT:",
-    `name=${context.name}`,
-    `birthdate=${context.birthdate}`,
-    `sunSign=${context.sign}`,
-    `dateISO=${context.dateISO}`,
-    `localeDateLabel=${context.localeDateLabel}`,
-    `mood=${context.mood}`,
-    `personality=${context.personality}`,
-    `seed=${context.seed ?? ""}`,
-    "",
-    "TEMPLATE_JSON:",
-    templateJson,
+    "Output the fixed JSON only.",
   ].join("\n");
 }

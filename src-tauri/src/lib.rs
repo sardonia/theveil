@@ -301,6 +301,11 @@ fn build_fallback_prompt(request: &ReadingRequest) -> String {
     )
 }
 
+// A small, high-leverage system prompt for chat-tuned GGUF models.
+// We keep it short so it doesn't eat context, but strong enough to enforce
+// strict JSON and the desired "Veil" voice.
+const VEIL_SYSTEM_PROMPT: &str = "You are Veil, a warm feminine astrologer with a loving aura. You are an expert who writes premium, modern astrology. Always follow the user's schema and output STRICT JSON only (double-quoted keys/strings, no trailing commas, no markdown). End output immediately after the final '}' character.";
+
 #[async_trait]
 impl HoroscopeModelBackend for EmbeddedBackend {
     async fn generate_json(
@@ -315,6 +320,7 @@ impl HoroscopeModelBackend for EmbeddedBackend {
 
         let mistral_sampling = to_mistral_sampling_params(sampling);
         let request_builder = RequestBuilder::new()
+            .add_message(TextMessageRole::System, VEIL_SYSTEM_PROMPT.to_string())
             .add_message(TextMessageRole::User, prompt)
             .set_sampling(mistral_sampling);
 
@@ -335,6 +341,7 @@ impl HoroscopeModelBackend for EmbeddedBackend {
 
         let mistral_sampling = to_mistral_sampling_params(sampling);
         let request_builder = RequestBuilder::new()
+            .add_message(TextMessageRole::System, VEIL_SYSTEM_PROMPT.to_string())
             .add_message(TextMessageRole::User, prompt)
             .set_sampling(mistral_sampling);
 
@@ -406,7 +413,8 @@ impl Default for SamplingParams {
             top_p: 0.9,
             top_k: 50,
             repeat_penalty: 1.1,
-            max_tokens: 1200,
+            // Dashboard JSON is large; low token limits frequently truncate output.
+            max_tokens: 3000,
             seed: None,
             stop: vec![],
         }
