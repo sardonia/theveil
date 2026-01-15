@@ -671,18 +671,10 @@ pub fn run() {
                 let _ = splash_window.show();
             }
 
-            if let (Some(splash_window), Some(main_window)) = (splash, main) {
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                    let _ = splash_window.close();
-                    let _ = main_window.show();
-                    let _ = main_window.set_focus();
-                });
-            }
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            close_splashscreen,
             init_model,
             model_status,
             generate_horoscope,
@@ -690,4 +682,15 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn close_splashscreen(app: tauri::AppHandle) {
+    if let Some(splash_window) = app.get_webview_window("splashscreen") {
+        let _ = splash_window.close();
+    }
+    if let Some(main_window) = app.get_webview_window("main") {
+        let _ = main_window.show();
+        let _ = main_window.set_focus();
+    }
 }

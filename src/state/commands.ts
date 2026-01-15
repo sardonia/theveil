@@ -103,7 +103,13 @@ export class CommandBus {
     this.queue.enqueue(async () => {
       debugModelLog("log", "command:GenerateReading:queue:begin");
       debugLog("log", "command:GenerateReading:queue:begin");
-      this.context.applyEvents([{ type: "ReadingGenerationStarted" }]);
+      this.context.applyEvents([
+        { type: "ReadingGenerationStarted" },
+        { type: "RouteChanged", route: "reading" },
+      ]);
+      debugLog("log", "command:GenerateReading:routeChanged", {
+        route: this.context.getState().ui.route,
+      });
       try {
         const reading = await runReadingPipeline(
           state.profile.saved as ProfileDraft,
@@ -123,11 +129,7 @@ export class CommandBus {
         this.pushUndo(snapshotBefore);
         this.context.applyEvents([
           { type: "ReadingGenerated", reading },
-          { type: "RouteChanged", route: "reading" },
         ]);
-        debugLog("log", "command:GenerateReading:routeChanged", {
-          route: this.context.getState().ui.route,
-        });
       } catch (error) {
         const message = error instanceof Error ? error.message : "The stars were quiet.";
         debugLog("error", "command:GenerateReading:pipeline:error", error);
