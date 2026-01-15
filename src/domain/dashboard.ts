@@ -29,6 +29,39 @@ function errorResult(message: string): ValidationResult {
   return { valid: false, error: message };
 }
 
+export function extractFirstJsonObject(text: string): string | null {
+  const startIndex = text.indexOf("{");
+  if (startIndex === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = startIndex; i < text.length; i += 1) {
+    const char = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+    } else if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(startIndex, i + 1);
+      }
+    }
+  }
+  return null;
+}
+
 export function parseDashboardPayload(json: string): ValidationResult {
   let raw: unknown;
   try {

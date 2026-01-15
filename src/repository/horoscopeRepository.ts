@@ -1,5 +1,5 @@
 import { emit } from "@tauri-apps/api/event";
-import type { ModelStatus, ProfileDraft, StreamEvent } from "../domain/types";
+import type { ModelStatus, ProfileDraft, SamplingParams, StreamEvent } from "../domain/types";
 import type { HoroscopeAdapter } from "../adapters/modelAdapter";
 import { EmbeddedModelAdapter } from "../adapters/modelAdapter";
 import { StubAdapter } from "../adapters/stubAdapter";
@@ -24,7 +24,8 @@ export class HoroscopeRepository {
     profile: ProfileDraft,
     date: string,
     prompt: string | undefined,
-    status: ModelStatus
+    status: ModelStatus,
+    sampling: SamplingParams = DEFAULT_SAMPLING_PARAMS
   ): Promise<string> {
     const startedAt = performance.now();
     debugModelLog("log", "repository:generate:start", {
@@ -39,7 +40,7 @@ export class HoroscopeRepository {
           profile,
           date,
           prompt,
-          DEFAULT_SAMPLING_PARAMS
+          sampling
         );
         debugModelLog("log", "repository:generate:complete", {
           source: "model",

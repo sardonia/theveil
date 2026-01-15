@@ -56,11 +56,11 @@ export const DEFAULT_PROFILE = {
 };
 
 export const DEFAULT_SAMPLING_PARAMS = {
-  temperature: 0.4,
+  temperature: 0.45,
   topP: 0.9,
-  topK: 40,
-  repeatPenalty: 1.12,
+  topK: 50,
+  repeatPenalty: 1.1,
   maxTokens: 1200,
   seed: null,
-  stop: ["\n\n", "```"],
+  stop: [],
 };
