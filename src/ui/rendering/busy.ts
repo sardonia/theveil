@@ -23,6 +23,7 @@ export function renderBusy(isGenerating: boolean) {
   }
   if (body) {
     body.style.opacity = isGenerating ? "0.2" : "1";
+    body.classList.toggle("is-loading", isGenerating);
   }
   if (regenerate) regenerate.disabled = isGenerating;
   if (edit) edit.disabled = isGenerating;
