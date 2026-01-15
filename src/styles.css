@@ -277,7 +277,6 @@ body {
 
 #reading-view {
   position: relative;
-  inset: auto;
   height: auto;
   min-height: 100%;
   overflow: visible;

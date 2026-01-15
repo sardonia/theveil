@@ -369,123 +369,59 @@ export function renderDashboard(
       .join("");
   }
 
-  if (ratingsEl) {
-    ratingsEl.innerHTML = ratingLabels
-      .map((label) => {
-        const value = payload.today.ratings[label];
-        return `
-          <div class="rating">
-            <span class="rating__label">${label}</span>
-            <span class="rating__stars">${renderStars(value)}</span>
-          </div>
-        `;
-      })
-      .join("");
-  }
-
-  if (cosmicMoonEl) {
-    cosmicMoonEl.textContent = `${payload.cosmicWeather.moon.phase} Moon in ${payload.cosmicWeather.moon.sign}`;
-  }
-  if (cosmicTransitsEl) {
-    cosmicTransitsEl.innerHTML = payload.cosmicWeather.transits
-      .map(
-        (transit) => `
-          <div class="pill pill--${transit.tone}">
-            <strong>${transit.title}</strong>
-            <span>${transit.meaning}</span>
-          </div>
-        `
-      )
-      .join("");
-  }
-  if (cosmicAffectsEl) cosmicAffectsEl.textContent = payload.cosmicWeather.affectsToday;
-
-  if (compBestEl) compBestEl.textContent = payload.compatibility.bestFlowWith.join(", ");
-  if (compHandleEl) compHandleEl.textContent = payload.compatibility.handleGentlyWith.join(", ");
-  if (compConflictEl) compConflictEl.textContent = payload.compatibility.tips.conflict;
-  if (compAffectionEl) compAffectionEl.textContent = payload.compatibility.tips.affection;
-
-  if (journalPromptEl) journalPromptEl.textContent = payload.journalRitual.prompt;
-  if (journalStartersEl) {
-    journalStartersEl.innerHTML = payload.journalRitual.starters
-      .map((starter) => `<button type="button" class="chip">${starter}</button>`)
-      .join("");
-  }
-  if (journalMantraEl) journalMantraEl.textContent = payload.journalRitual.mantra;
-  if (journalRitualEl) journalRitualEl.textContent = payload.journalRitual.ritual;
-  if (journalBestDayEl) {
-    journalBestDayEl.textContent = payload.journalRitual.bestDayForDecisions.dayLabel;
-  }
-  if (journalBestReasonEl) {
-    journalBestReasonEl.textContent = payload.journalRitual.bestDayForDecisions.reason;
-  }
-
-  if (weekArcEl) {
-    weekArcEl.innerHTML = `
-      <div><strong>Start:</strong> ${payload.week.arc.start}</div>
-      <div><strong>Midweek:</strong> ${payload.week.arc.midweek}</div>
-      <div><strong>Weekend:</strong> ${payload.week.arc.weekend}</div>
-    `;
-  }
-  if (weekOpportunityEl) weekOpportunityEl.textContent = payload.week.keyOpportunity;
-  if (weekCautionEl) weekCautionEl.textContent = payload.week.keyCaution;
-  if (weekDecisionsEl) weekDecisionsEl.textContent = payload.week.bestDayFor.decisions;
-  if (weekConversationsEl) weekConversationsEl.textContent = payload.week.bestDayFor.conversations;
-  if (weekRestEl) weekRestEl.textContent = payload.week.bestDayFor.rest;
-
-  if (monthThemeEl) monthThemeEl.textContent = payload.month.theme;
-  if (monthDatesEl) {
-    monthDatesEl.innerHTML = payload.month.keyDates
-      .map(
-        (date) => `
-          <li>
-            <strong>${date.dateLabel} — ${date.title}</strong>
-            <span>${date.note}</span>
-          </li>
-        `
-      )
-      .join("");
-  }
-  if (monthNewMoonEl) {
-    monthNewMoonEl.textContent = `${payload.month.newMoon.dateLabel}: ${payload.month.newMoon.intention}`;
-  }
-  if (monthFullMoonEl) {
-    monthFullMoonEl.textContent = `${payload.month.fullMoon.dateLabel}: ${payload.month.fullMoon.release}`;
-  }
-  if (monthOneThingEl) monthOneThingEl.textContent = payload.month.oneThing;
-
-  if (yearHeadlineEl) yearHeadlineEl.textContent = payload.year.headline;
-  if (yearQuartersEl) {
-    yearQuartersEl.innerHTML = payload.year.quarters
-      .map((quarter) => `<li><strong>${quarter.label}</strong> ${quarter.focus}</li>`)
-      .join("");
-  }
-  if (yearPowerEl) yearPowerEl.textContent = payload.year.powerMonths.join(", ");
-  if (yearChallengeEl) {
-    yearChallengeEl.textContent = `${payload.year.challengeMonth.month}: ${payload.year.challengeMonth.guidance}`;
-  }
-
-  if (errorEl) errorEl.textContent = error ?? "";
-}
-
 export function renderBusy(isGenerating: boolean) {
-  const loading = document.querySelector<HTMLElement>("#dashboard-loading");
-  const body = document.querySelector<HTMLElement>("#dashboard-body");
+  const loading = document.querySelector<HTMLElement>("#reading-loading");
+  const body = document.querySelector<HTMLElement>("#reading-body");
   const regenerate = document.querySelector<HTMLButtonElement>("#regenerate");
   const edit = document.querySelector<HTMLButtonElement>("#edit-profile");
-  const save = document.querySelector<HTMLButtonElement>("#save-reading");
-  const share = document.querySelector<HTMLButtonElement>("#share-reading");
+  const copy = document.querySelector<HTMLButtonElement>("#copy-reading");
 
   if (loading) {
     loading.hidden = !isGenerating;
   }
   if (body) {
-    body.classList.toggle("is-loading", isGenerating);
+    body.style.opacity = isGenerating ? "0.2" : "1";
   }
   if (regenerate) regenerate.disabled = isGenerating;
   if (edit) edit.disabled = isGenerating;
-  if (save) save.disabled = isGenerating;
-  if (share) share.disabled = isGenerating;
+  if (copy) copy.disabled = isGenerating;
+}
+
+function getStreamTargets() {
+  const targets: HTMLElement[] = [];
+  const loadingStream = document.querySelector<HTMLElement>("#reading-stream");
+  const messageStream = document.querySelector<HTMLElement>(".reading__message");
+  if (loadingStream) targets.push(loadingStream);
+  if (messageStream) targets.push(messageStream);
+  return targets;
+}
+
+export function resetReadingStream() {
+  const targets = getStreamTargets();
+  if (targets.length === 0) {
+    if (isDebugEnabled()) {
+      debugLog("warn", "reading:stream:targets:missing", { action: "reset" });
+    }
+    return;
+  }
+  readingStreamBuffer = "";
+  targets.forEach((target) => {
+    target.textContent = "";
+  });
+}
+
+export function appendReadingStream(chunk: string) {
+  const targets = getStreamTargets();
+  if (targets.length === 0) {
+    if (isDebugEnabled()) {
+      debugLog("warn", "reading:stream:targets:missing", { action: "append" });
+    }
+    return;
+  }
+  readingStreamBuffer += chunk;
+  targets.forEach((target) => {
+    target.textContent = readingStreamBuffer;
+  });
 }
 
 export function showToast(message: string) {

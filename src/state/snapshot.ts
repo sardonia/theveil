@@ -68,10 +68,6 @@ function migrateSnapshot(snapshot: Snapshot): AppState {
 function normalizeLoadedState(state: AppState): AppState {
   return {
     ...state,
-    reading: {
-      ...state.reading,
-      error: null,
-    },
     ui: {
       ...state.ui,
       route: "welcome",
