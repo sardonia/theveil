@@ -9,7 +9,12 @@ export class StubAdapter {
       `${profile.name}-${dateISO}-${sign}-${profile.mood}-${profile.personality}`
     );
     const rng = seeded(seed);
-    const localeDateLabel = new Date(dateISO).toLocaleDateString(undefined, {
+    const [year, month, day] = dateISO.split("-").map((value) => Number(value));
+    const safeLocalDate =
+      Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)
+        ? new Date(year, month - 1, day)
+        : new Date();
+    const localeDateLabel = safeLocalDate.toLocaleDateString(undefined, {
       weekday: "long",
       month: "long",
       day: "numeric",

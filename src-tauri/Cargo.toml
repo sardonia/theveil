@@ -27,6 +27,7 @@ sysinfo = "0.30"
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
 mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs.git", features = ["metal"] }
+async-trait = "0.1"
 
 #[features]
 # mistral.rs async crate
