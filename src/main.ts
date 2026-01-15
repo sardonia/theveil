@@ -1,7 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DEFAULT_PROFILE } from "./domain/constants";
 import type { AppState, ModelStatus, ProfileDraft } from "./domain/types";
 import { CommandBus } from "./state/commands";
@@ -151,15 +149,21 @@ function initReadingStream() {
       debugModelLog("error", "reading:stream:listener:failed", error);
     });
 
-  const appWindow = getCurrentWindow();
-  const windowListener = appWindow
-    .listen<StreamEvent>("reading:stream", (event: { payload: StreamEvent }) => {
-      handleStreamEvent(event.payload);
-    })
-    .then(() => {
-      const label = appWindow.label;
-      debugLog("log", "initReadingStream:ready", { target: label });
-      debugModelLog("log", "reading:stream:listener:ready", { target: label });
+  const windowListener = import("@tauri-apps/api/window")
+    .then(({ getCurrentWindow }) => {
+      const appWindow = getCurrentWindow();
+      return appWindow
+        .listen<StreamEvent>(
+          "reading:stream",
+          (event: { payload: StreamEvent }) => {
+            handleStreamEvent(event.payload);
+          }
+        )
+        .then(() => {
+          const label = appWindow.label;
+          debugLog("log", "initReadingStream:ready", { target: label });
+          debugModelLog("log", "reading:stream:listener:ready", { target: label });
+        });
     })
     .catch((error: unknown) => {
       debugLog("error", "initReadingStream:failed", error);
