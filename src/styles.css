@@ -539,7 +539,6 @@ body {
   background: rgba(8, 10, 24, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 0 24px rgba(125, 228, 255, 0.08);
-  min-height: 240px;
 }
 
 .reading__themes ul {
