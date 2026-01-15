@@ -39,6 +39,9 @@ export class EmbeddedModelAdapter implements HoroscopeAdapter {
       debugModelLog("log", "adapter:model:response", {
         payloadLength: payloadJson.length,
       });
+      debugModelLog("log", "adapter:model:response:json", {
+        payloadJson,
+      });
       return payloadJson;
     } catch (error) {
       debugModelLog("error", "adapter:model:error", error);

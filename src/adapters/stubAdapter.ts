@@ -1,4 +1,5 @@
 import type { DashboardPayload, ProfileDraft } from "../domain/types";
+import { debugModelLog } from "../debug/logger";
 import { zodiacSign } from "../domain/zodiac";
 
 export class StubAdapter {
@@ -162,7 +163,11 @@ export class StubAdapter {
       },
     };
 
-    return JSON.stringify(payload);
+    const payloadJson = JSON.stringify(payload);
+    debugModelLog("log", "adapter:stub:response:json", {
+      payloadJson,
+    });
+    return payloadJson;
   }
 }
 
