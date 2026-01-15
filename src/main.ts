@@ -149,28 +149,7 @@ function initReadingStream() {
       debugModelLog("error", "reading:stream:listener:failed", error);
     });
 
-  const windowListener = import("@tauri-apps/api/window")
-    .then(({ getCurrentWindow }) => {
-      const appWindow = getCurrentWindow();
-      return appWindow
-        .listen<StreamEvent>(
-          "reading:stream",
-          (event: { payload: StreamEvent }) => {
-            handleStreamEvent(event.payload);
-          }
-        )
-        .then(() => {
-          const label = appWindow.label;
-          debugLog("log", "initReadingStream:ready", { target: label });
-          debugModelLog("log", "reading:stream:listener:ready", { target: label });
-        });
-    })
-    .catch((error: unknown) => {
-      debugLog("error", "initReadingStream:failed", error);
-      debugModelLog("error", "reading:stream:listener:failed", error);
-    });
-
-  void Promise.allSettled([appListener, windowListener]);
+  void Promise.allSettled([appListener]);
 
   window.addEventListener("reading:stream-local", (event) => {
     const detail = (event as CustomEvent<StreamEvent>).detail;
@@ -346,10 +325,14 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // Helpful startup diagnostics (especially for WKWebView issues).
   debugLog("log", "UserAgent", navigator.userAgent);
-
-  invoke("close_splashscreen").catch((error) => {
-    debugLog("warn", "closeSplashscreen:failed", error);
-  });
+  let splashscreenClosed = false;
+  const closeSplashscreen = () => {
+    if (splashscreenClosed) return;
+    splashscreenClosed = true;
+    invoke("close_splashscreen").catch((error) => {
+      debugLog("warn", "closeSplashscreen:failed", error);
+    });
+  };
 
   populateSelects();
   debugLog("log", "populateSelects:done", {
@@ -378,6 +361,9 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   requestAnimationFrame(() => {
+    window.setTimeout(() => {
+      closeSplashscreen();
+    }, 300);
     window.setTimeout(() => {
       initModel();
       debugLog("log", "initModel:started");
