@@ -1,9 +1,8 @@
-import type { ModelStatus, ProfileDraft, Reading } from "../domain/types";
+import type { ModelStatus, ProfileDraft } from "../domain/types";
 import type { HoroscopeAdapter } from "../adapters/modelAdapter";
 import { EmbeddedModelAdapter } from "../adapters/modelAdapter";
 import { StubAdapter } from "../adapters/stubAdapter";
 import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
-import { emit } from "@tauri-apps/api/event";
 import { debugModelLog } from "../debug/logger";
 
 type StreamEvent =
@@ -30,7 +29,7 @@ export class HoroscopeRepository {
     date: string,
     prompt: string | undefined,
     status: ModelStatus
-  ): Promise<Reading> {
+  ): Promise<string> {
     debugModelLog("log", "repository:generate:start", {
       status,
       date,
@@ -49,7 +48,7 @@ export class HoroscopeRepository {
         debugModelLog("warn", "repository:generate:model:error", {
           message: "Model adapter failed. Falling back to stub.",
         });
-        return this.emitStubStream(profile, date);
+        return this.stubAdapter.generate(profile, date);
       }
     }
     debugModelLog("warn", "repository:generate:using:stub", {

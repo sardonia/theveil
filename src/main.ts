@@ -6,13 +6,11 @@ import { CommandBus } from "./state/commands";
 import { loadSnapshot, saveSnapshot } from "./state/snapshot";
 import { createStore } from "./state/store";
 import {
-  appendReadingStream,
   populateSelects,
-  resetReadingStream,
   renderBusy,
+  renderDashboard,
   renderModelStatus,
   renderProfileDraft,
-  renderReading,
   renderRoute,
   renderValidationErrors,
   showToast,
@@ -27,11 +25,6 @@ import {
   isDebugOverlayVisible,
   setDebugEnabled,
 } from "./debug/logger";
-
-type StreamEvent =
-  | { kind: "start" }
-  | { kind: "chunk"; chunk: string }
-  | { kind: "end" };
 
 const store = createStore(loadSnapshot());
 const commandBus = new CommandBus({
@@ -243,23 +236,216 @@ function bindForm() {
 
 function bindActions() {
   document.querySelector("#regenerate")?.addEventListener("click", () => {
-    commandBus.execute({ type: "GenerateReading" });
+    void commandBus.execute({ type: "GenerateReading" });
   });
 
   document.querySelector("#edit-profile")?.addEventListener("click", () => {
-    commandBus.execute({ type: "EditProfile" });
+    void commandBus.execute({ type: "EditProfile" });
   });
 
-  document.querySelector("#copy-reading")?.addEventListener("click", async () => {
-    const reading = store.getState().reading.current;
-    if (!reading) return;
-    const text = `${reading.title}\n\n${reading.message}\n\nThemes: ${reading.themes.join(", ")}\nAffirmation: ${reading.affirmation}\nLucky color: ${reading.luckyColor}\nLucky number: ${reading.luckyNumber}`;
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast("Copied to your clipboard.");
-    } catch {
-      showToast("Unable to copy right now.");
-    }
+  document.querySelector("#save-reading")?.addEventListener("click", () => {
+    const payload = store.getState().reading.current;
+    if (!payload) return;
+    saveReading(payload);
+  });
+
+  document.querySelector("#share-reading")?.addEventListener("click", () => {
+    void shareReading();
+  });
+
+  document.querySelector("#open-archive")?.addEventListener("click", () => {
+    toggleArchive(true);
+  });
+
+  document.querySelector("#archive-close")?.addEventListener("click", () => {
+    toggleArchive(false);
+  });
+
+  document.querySelector(".archive-modal__backdrop")?.addEventListener("click", () => {
+    toggleArchive(false);
+  });
+}
+
+function bindTabs() {
+  const tabs = document.querySelectorAll<HTMLButtonElement>(".dashboard__tab");
+  const tabScrollTargets: Record<string, string> = {
+    today: "#dashboard-primary",
+    week: "#weekly-overview",
+    month: "#monthly-highlights",
+    year: "#year-overview",
+    moon: "#cosmic-weather",
+    chart: "#compatibility-card",
+    journal: "#journal-ritual",
+  };
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      tabs.forEach((btn) => btn.classList.remove("is-active"));
+      tab.classList.add("is-active");
+      const target = tab.dataset.target;
+      if (target && tabScrollTargets[target]) {
+        const el = document.querySelector(tabScrollTargets[target]);
+        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  });
+}
+
+function saveReading(payload: NonNullable<AppState["reading"]["current"]>) {
+  const key = `reading:${payload.meta.dateISO}:${payload.meta.sign}`;
+  localStorage.setItem(key, JSON.stringify(payload));
+  const indexKey = "reading:archive:index";
+  const existing = JSON.parse(localStorage.getItem(indexKey) ?? "[]") as string[];
+  const next = [key, ...existing.filter((entry) => entry !== key)].slice(0, 60);
+  localStorage.setItem(indexKey, JSON.stringify(next));
+  showToast("Saved to your archive.");
+  renderArchiveList();
+}
+
+function getArchiveKeys() {
+  const indexKey = "reading:archive:index";
+  return JSON.parse(localStorage.getItem(indexKey) ?? "[]") as string[];
+}
+
+function renderArchiveList() {
+  const list = document.querySelector<HTMLElement>("#archive-list");
+  if (!list) return;
+  const keys = getArchiveKeys();
+  if (keys.length === 0) {
+    list.innerHTML = "<p class=\"muted\">No saved readings yet.</p>";
+    return;
+  }
+  list.innerHTML = keys
+    .map((key) => {
+      const raw = localStorage.getItem(key);
+      if (!raw) return "";
+      try {
+        const payload = JSON.parse(raw) as AppState["reading"]["current"];
+        if (!payload) return "";
+        return `
+          <button type="button" class="archive-item" data-key="${key}">
+            <span>${payload.meta.localeDateLabel}</span>
+            <span>${payload.meta.sign}</span>
+          </button>
+        `;
+      } catch {
+        return "";
+      }
+    })
+    .join("");
+
+  list.querySelectorAll<HTMLButtonElement>(".archive-item").forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.key;
+      if (!key) return;
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      try {
+        const payload = JSON.parse(raw) as AppState["reading"]["current"];
+        if (!payload) return;
+        store.applyEvents([{ type: "ReadingGenerated", reading: payload }]);
+        saveSnapshot(store.getState());
+        toggleArchive(false);
+      } catch {
+        showToast("Unable to open that saved reading.");
+      }
+    });
+  });
+}
+
+function toggleArchive(open: boolean) {
+  const modal = document.querySelector<HTMLElement>("#archive-modal");
+  if (!modal) return;
+  modal.classList.toggle("is-open", open);
+  modal.setAttribute("aria-hidden", String(!open));
+  if (open) {
+    renderArchiveList();
+  }
+}
+
+async function shareReading() {
+  const payload = store.getState().reading.current;
+  if (!payload) return;
+  const card = document.querySelector<HTMLElement>("#dashboard-primary");
+  if (!card) return;
+  try {
+    const dataUrl = await captureCardImage(card);
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `veil-${payload.meta.dateISO}.png`;
+    link.click();
+    showToast("Share image saved.");
+  } catch (error) {
+    debugLog("error", "shareReading:image:failed", error);
+    await fallbackCopySummary(payload);
+  }
+}
+
+async function fallbackCopySummary(payload: NonNullable<AppState["reading"]["current"]>) {
+  const text = [
+    payload.today.headline,
+    payload.today.subhead,
+    `Theme: ${payload.today.theme}`,
+    `Energy: ${payload.today.energyScore}/100`,
+    `Lucky: ${payload.today.lucky.color}, ${payload.today.lucky.number}, ${payload.today.lucky.symbol}`,
+  ].join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Summary copied to clipboard.");
+  } catch (error) {
+    debugLog("error", "shareReading:copy:failed", error);
+    showToast("Unable to share right now.");
+  }
+}
+
+async function captureCardImage(card: HTMLElement) {
+  const rect = card.getBoundingClientRect();
+  const cloned = card.cloneNode(true) as HTMLElement;
+  inlineStyles(card, cloned);
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${rect.width}" height="${rect.height}">
+      <foreignObject width="100%" height="100%">
+        <div xmlns="http://www.w3.org/1999/xhtml">${cloned.outerHTML}</div>
+      </foreignObject>
+    </svg>
+  `;
+
+  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.src = url;
+  await (img.decode
+    ? img.decode()
+    : new Promise((resolve, reject) => {
+        img.onload = () => resolve(undefined);
+        img.onerror = reject;
+      }));
+  const canvas = document.createElement("canvas");
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = rect.width * scale;
+  canvas.height = rect.height * scale;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    URL.revokeObjectURL(url);
+    throw new Error("Canvas unavailable.");
+  }
+  ctx.scale(scale, scale);
+  ctx.drawImage(img, 0, 0);
+  URL.revokeObjectURL(url);
+  return canvas.toDataURL("image/png");
+}
+
+function inlineStyles(source: Element, target: Element) {
+  const sourceElements = source.querySelectorAll<HTMLElement>("*");
+  const targetElements = target.querySelectorAll<HTMLElement>("*");
+  const sourceRootStyle = getComputedStyle(source as HTMLElement);
+  (target as HTMLElement).style.cssText = sourceRootStyle.cssText;
+  sourceElements.forEach((node, index) => {
+    const targetNode = targetElements[index];
+    if (!targetNode) return;
+    const computed = getComputedStyle(node);
+    targetNode.style.cssText = computed.cssText;
   });
 }
 
@@ -287,7 +473,7 @@ function renderInitial(state: AppState) {
   renderProfileDraft(state.profile.draft);
   renderValidationErrors(state.profile.validationErrors);
   renderModelStatus(state.model.status);
-  renderReading(state.reading.current, state.profile.saved);
+  renderDashboard(state.reading.current, state.profile.saved, state.reading.error);
   renderBusy(state.ui.busyFlags.generating);
 }
 
@@ -305,7 +491,13 @@ store.subscribe(
 );
 store.subscribe(
   (state) => state.reading.current,
-  (value) => renderReading(value, store.getState().profile.saved)
+  (value) =>
+    renderDashboard(value, store.getState().profile.saved, store.getState().reading.error)
+);
+store.subscribe(
+  (state) => state.reading.error,
+  (value) =>
+    renderDashboard(store.getState().reading.current, store.getState().profile.saved, value)
 );
 store.subscribe(
   (state) => state.ui.busyFlags.generating,
@@ -344,7 +536,13 @@ window.addEventListener("DOMContentLoaded", () => {
   debugLog("log", "bindActions:done", {
     hasRegenerate: Boolean(document.querySelector("#regenerate")),
     hasEdit: Boolean(document.querySelector("#edit-profile")),
-    hasCopy: Boolean(document.querySelector("#copy-reading")),
+    hasSave: Boolean(document.querySelector("#save-reading")),
+    hasShare: Boolean(document.querySelector("#share-reading")),
+  });
+
+  bindTabs();
+  debugLog("log", "bindTabs:done", {
+    tabCount: document.querySelectorAll(".dashboard__tab").length,
   });
 
   renderInitial(store.getState());
@@ -356,9 +554,6 @@ window.addEventListener("DOMContentLoaded", () => {
     initModel();
     debugLog("log", "initModel:started");
   });
-  initReadingStream();
-  debugLog("log", "initReadingStream:started");
-
   // Starfield is purely decorative. Never let it break core interactivity.
   // (WKWebView feature support varies by macOS version.)
   try {

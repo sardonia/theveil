@@ -117,14 +117,14 @@ export class CommandBus {
           this.context.getState()
         );
         debugModelLog("log", "command:GenerateReading:success", {
-          title: reading.title,
-          sign: reading.sign,
-          source: reading.source,
+          headline: reading.today.headline,
+          sign: reading.meta.sign,
+          dateISO: reading.meta.dateISO,
         });
         debugLog("log", "command:GenerateReading:pipeline:success", {
-          title: reading.title,
-          sign: reading.sign,
-          source: reading.source,
+          headline: reading.today.headline,
+          sign: reading.meta.sign,
+          dateISO: reading.meta.dateISO,
         });
         this.pushUndo(snapshotBefore);
         this.context.applyEvents([
