@@ -664,12 +664,22 @@ pub fn run() {
         .manage(ModelManager::new())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            if let Some(splash) = app.get_webview_window("splashscreen") {
-                let _ = splash.show();
+            let splash = app.get_webview_window("splashscreen");
+            let main = app.get_webview_window("main");
+
+            if let Some(splash_window) = &splash {
+                let _ = splash_window.show();
             }
-            if let Some(main) = app.get_webview_window("main") {
-                let _ = main.hide();
+
+            if let (Some(splash_window), Some(main_window)) = (splash, main) {
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    let _ = splash_window.close();
+                    let _ = main_window.show();
+                    let _ = main_window.set_focus();
+                });
             }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
