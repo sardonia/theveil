@@ -2,8 +2,8 @@ import type { AppState, DashboardPayload, ProfileDraft, SamplingParams } from ".
 import { HoroscopeRepository } from "../repository/horoscopeRepository";
 import { debugModelLog } from "../debug/logger";
 import { zodiacSign } from "../domain/zodiac";
-import { buildDashboardPrompt, buildRegeneratePrompt, buildRepairPrompt } from "./dashboardPrompt";
-import { extractFirstJsonObject, parseDashboardPayload } from "../domain/dashboard";
+import { buildDashboardPrompt, buildRegeneratePrompt, buildRepairPrompt } from "./dashPrompts";
+import { sanitizeAndParseDashboardPayload } from "../domain/dashboard";
 import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
 import { StubAdapter } from "../adapters/stubAdapter";
 
@@ -95,12 +95,10 @@ export class ValidatePayloadStep implements PipelineStep {
     const bumpSampling = (sampling: SamplingParams | undefined, attempt: number): SamplingParams => {
       const base = sampling ?? DEFAULT_SAMPLING_PARAMS;
       const seed = base.seed == null ? null : ((base.seed + attempt * 1337) >>> 0);
-      // Increase token budget on retries; truncated JSON is the most common failure mode.
-      // Keep a generous upper bound for GGUF chat models. If the underlying
-      // backend treats maxTokens as a total sequence length (prompt + output),
-      // we need headroom for both.
-      const maxTokens = Math.min(base.maxTokens + attempt * 600, 5000);
-      return { ...base, seed, maxTokens };
+      const maxTokensBase = Math.max(base.maxTokens, 3000);
+      const maxTokens = Math.max(Math.round(maxTokensBase * 1.2), 3600) + attempt * 200;
+      const temperature = attempt === 0 ? base.temperature : Math.min(base.temperature, 0.3);
+      return { ...base, seed, maxTokens, temperature };
     };
 
     const isTruncationError = (message: string) => {
@@ -115,33 +113,52 @@ export class ValidatePayloadStep implements PipelineStep {
 
     const isSyntaxLikeError = (message: string) => {
       const m = message.toLowerCase();
-      return m.includes("property name") || m.includes("string literal") || m.includes("invalid") || m.includes("unexpected token");
+      return (
+        m.includes("property name") ||
+        m.includes("string literal") ||
+        m.includes("invalid") ||
+        m.includes("unexpected token")
+      );
     };
 
-    const tryParse = (payloadJson: string) => {
-      const extracted = extractFirstJsonObject(payloadJson);
-      const candidate = extracted ?? payloadJson;
-      return parseDashboardPayload(candidate);
-    };
+    const tryParse = (payloadJson: string) => sanitizeAndParseDashboardPayload(payloadJson);
 
     // Try initial output + up to 2 retries.
     let currentJson = context.payloadJson;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const result = tryParse(currentJson);
-      if (result.valid) {
-        context.payload = result.payload;
-        debugModelLog("log", attempt === 0 ? "pipeline:payload:validated" : "pipeline:payload:repair:validated", {
-          meta: result.payload.meta,
-          sections: result.payload.today.sections.length,
-          attempt,
-        });
+      if (result.ok) {
+        context.payload = result.value;
+        debugModelLog(
+          "log",
+          attempt === 0 ? "pipeline:payload:validated" : "pipeline:payload:repair:validated",
+          {
+            meta: result.value.meta,
+            sections: result.value.today.sections.length,
+            attempt,
+          }
+        );
         return;
       }
 
+      const payloadHead = currentJson.slice(0, 200);
+      const payloadTail = currentJson.length > 200 ? currentJson.slice(-200) : "";
       debugModelLog("warn", "pipeline:payload:invalid", {
-        error: result.error,
+        error: result.error.message,
         attempt,
         payloadLength: currentJson.length,
+        payloadHead,
+        payloadTail,
+        wrapperFixApplied: result.info.wrapperFixApplied,
+        rootMergeApplied: result.info.rootMergeApplied,
+        missingBraceAdded: result.info.missingBraceAdded,
+        sanitizer: {
+          changed: result.info.changed,
+          codeFencesRemoved: result.info.codeFencesRemoved,
+          extractedJson: result.info.extractedJson,
+          trailingCommasRemoved: result.info.trailingCommasRemoved,
+          unquotedKeysFixed: result.info.unquotedKeysFixed,
+        },
       });
 
       if (!context.templateJson) break;
@@ -150,15 +167,18 @@ export class ValidatePayloadStep implements PipelineStep {
       // from the template rather than "repair" a cut-off blob.
       const promptContext = buildPromptContext();
       const nextSampling = bumpSampling(context.sampling, attempt + 1);
-      const nextPrompt =
-        isTruncationError(result.error) || isSyntaxLikeError(result.error)
-          ? buildRegeneratePrompt(promptContext, context.templateJson)
-          : buildRepairPrompt(promptContext, context.templateJson, currentJson);
+      const regenerate = isTruncationError(result.error.message) ||
+        isSyntaxLikeError(result.error.message);
+      const nextPrompt = regenerate
+        ? buildRegeneratePrompt(promptContext, context.templateJson)
+        : buildRepairPrompt(currentJson);
 
       debugModelLog("log", "pipeline:payload:repair:start", {
         attempt: attempt + 1,
-        mode: isTruncationError(result.error) || isSyntaxLikeError(result.error) ? "regenerate" : "repair",
+        mode: regenerate ? "regenerate" : "repair",
         maxTokens: nextSampling.maxTokens,
+        temperature: nextSampling.temperature,
+        seed: nextSampling.seed,
       });
 
       currentJson = await this.repository.generate(
@@ -176,11 +196,11 @@ export class ValidatePayloadStep implements PipelineStep {
     });
     const stubJson = await this.stub.generate(context.profile, context.dateISO, context.sampling);
     const stubResult = tryParse(stubJson);
-    if (!stubResult.valid) {
+    if (!stubResult.ok) {
       // This should never happen, but fail loudly if it does.
-      throw new Error(stubResult.error);
+      throw new Error(stubResult.error.message);
     }
-    context.payload = stubResult.payload;
+    context.payload = stubResult.value;
   }
 }
 
