@@ -594,6 +594,13 @@
   text-align: center;
 }
 
+.dashboard__loading__hint {
+  margin-top: 0.25rem;
+  font-size: 0.9rem;
+  opacity: 0.75;
+  max-width: 360px;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

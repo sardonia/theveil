@@ -38,8 +38,12 @@ export class BuildPromptStep implements PipelineStep {
     });
     context.prompt = prompt;
     context.templateJson = templateJson;
+    const promptPreview = previewText(context.prompt ?? "");
     debugModelLog("log", "pipeline:prompt:built", {
-      prompt: context.prompt,
+      promptLength: promptPreview.length,
+      promptHead: promptPreview.head,
+      promptTail: promptPreview.tail,
+      templateLength: templateJson.length,
     });
   }
 }
@@ -69,11 +73,9 @@ export class InvokeModelStep implements PipelineStep {
 }
 
 export class ValidatePayloadStep implements PipelineStep {
-  private repository: HoroscopeRepository;
   private stub: StubAdapter;
 
-  constructor(repository: HoroscopeRepository) {
-    this.repository = repository;
+  constructor() {
     this.stub = new StubAdapter();
   }
 
@@ -180,19 +182,32 @@ export class ValidatePayloadStep implements PipelineStep {
         temperature: nextSampling.temperature,
         seed: nextSampling.seed,
       });
-
-      currentJson = await this.repository.generate(
-        context.profile,
-        context.dateISO,
-        nextPrompt,
-        state.model.status,
-        nextSampling
-      );
+      return;
     }
 
-    // If the model keeps producing invalid JSON, fall back to the stub.
+    const payloadHead = context.payloadJson.slice(0, 200);
+    const payloadTail = context.payloadJson.length > 200 ? context.payloadJson.slice(-200) : "";
+    debugModelLog("warn", "pipeline:payload:invalid", {
+      error: result.error.message,
+      payloadLength: context.payloadJson.length,
+      payloadHead,
+      payloadTail,
+      payloadJson: context.payloadJson,
+      location: describeJsonErrorLocation(context.payloadJson, result.error.message),
+      wrapperFixApplied: result.info.wrapperFixApplied,
+      rootMergeApplied: result.info.rootMergeApplied,
+      sanitizer: {
+        changed: result.info.changed,
+        codeFencesRemoved: result.info.codeFencesRemoved,
+        extractedJson: result.info.extractedJson,
+        trailingCommasRemoved: result.info.trailingCommasRemoved,
+        unquotedKeysFixed: result.info.unquotedKeysFixed,
+      },
+    });
+
+    // If the model produces invalid JSON, fall back to the stub.
     debugModelLog("error", "pipeline:payload:fallback:stub", {
-      reason: "Model produced invalid JSON after retries",
+      reason: "Model produced invalid JSON on first attempt",
     });
     const stubJson = await this.stub.generate(context.profile, context.dateISO, context.sampling);
     const stubResult = tryParse(stubJson);
@@ -211,6 +226,51 @@ function hashSeed(input: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+function previewText(
+  text: string,
+  head = 220,
+  tail = 220
+): { length: number; head: string; tail: string } {
+  const length = text.length;
+  if (length <= head + tail + 20) {
+    return { length, head: text, tail: "" };
+  }
+  return {
+    length,
+    head: text.slice(0, head),
+    tail: text.slice(Math.max(0, length - tail)),
+  };
+}
+
+function describeJsonErrorLocation(
+  json: string,
+  message: string
+): { position: number | null; line: number | null; column: number | null; snippet: string | null } {
+  const match = message.match(/position (\d+)/i);
+  if (!match) {
+    return { position: null, line: null, column: null, snippet: null };
+  }
+  const position = Number(match[1]);
+  if (!Number.isFinite(position) || position < 0) {
+    return { position: null, line: null, column: null, snippet: null };
+  }
+  const safePosition = Math.min(position, json.length);
+  let line = 1;
+  let column = 1;
+  for (let i = 0; i < safePosition; i += 1) {
+    if (json[i] === "\n") {
+      line += 1;
+      column = 1;
+    } else {
+      column += 1;
+    }
+  }
+  const start = Math.max(0, safePosition - 120);
+  const end = Math.min(json.length, safePosition + 120);
+  const snippet = json.slice(start, end);
+  return { position: safePosition, line, column, snippet };
 }
 
 function buildSamplingParams(
@@ -240,7 +300,7 @@ export async function runReadingPipeline(
   const steps: PipelineStep[] = [
     new BuildPromptStep(),
     new InvokeModelStep(repository),
-    new ValidatePayloadStep(repository),
+    new ValidatePayloadStep(),
   ];
   const [year, month, day] = dateISO.split("-").map((value) => Number(value));
   const safeLocalDate =
