@@ -369,12 +369,16 @@ function unwrapAnonymousRootObjects(text: string): { text: string; applied: bool
   return { text: out, applied };
 }
 
-function closeMissingBraces(text: string): { text: string; added: boolean } {
+function closeMissingFinalBrace(text: string): { text: string; added: boolean } {
   let inString = false;
   let escaped = false;
   let depth = 0;
+  let lastNonWhitespace = "";
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
+    if (!/\s/.test(ch)) {
+      lastNonWhitespace = ch;
+    }
     if (inString) {
       if (escaped) {
         escaped = false;
@@ -392,10 +396,10 @@ function closeMissingBraces(text: string): { text: string; added: boolean } {
     if (ch === "{") depth += 1;
     if (ch === "}") depth -= 1;
   }
-  if (depth <= 0) {
+  if (inString || depth !== 1 || lastNonWhitespace === "}") {
     return { text, added: false };
   }
-  return { text: text + "}".repeat(depth), added: true };
+  return { text: `${text}}`, added: true };
 }
 
 function sanitizeDashboardPayload(raw: string): { sanitized: string; info: SanitizationInfo } {
@@ -407,7 +411,7 @@ function sanitizeDashboardPayload(raw: string): { sanitized: string; info: Sanit
   const quotedKeys = quoteUnquotedKeys(withoutCommas);
   const { text: merged, applied: rootMergeApplied } = mergeRootObjects(quotedKeys);
   const { text: unwrapped, applied } = unwrapAnonymousRootObjects(merged);
-  const { text: braceFixed, added } = closeMissingBraces(unwrapped);
+  const { text: braceFixed, added } = closeMissingFinalBrace(unwrapped);
   return {
     sanitized: braceFixed,
     info: {
@@ -493,24 +497,56 @@ export function normalizeDashboard(raw: unknown): unknown {
     }
     if (Array.isArray(today.bestHours)) {
       const fallback = { label: "", start: "", end: "" };
+      const normalized = today.bestHours.slice(0, 2).map((entry) => {
+        if (!isRecord(entry)) return { ...fallback };
+        return {
+          label: isString(entry.label) ? entry.label : "",
+          start: isString(entry.start) ? entry.start : "",
+          end: isString(entry.end) ? entry.end : "",
+        };
+      });
       today.bestHours = [
-        ...today.bestHours.slice(0, 2),
-        ...Array.from({ length: Math.max(0, 2 - today.bestHours.length) }, () => ({
-          ...fallback,
-        })),
+        ...normalized,
+        ...Array.from({ length: Math.max(0, 2 - normalized.length) }, () => ({ ...fallback })),
       ];
+    }
+    if (Array.isArray(today.sections)) {
+      const normalizeTitle = (value: unknown): string | null => {
+        if (!isString(value)) return null;
+        const trimmed = value.trim().toLowerCase();
+        if (trimmed === "focus") return "Focus";
+        if (trimmed === "relationships") return "Relationships";
+        if (trimmed === "action") return "Action";
+        if (trimmed === "reflection") return "Reflection";
+        return null;
+      };
+      const byTitle = new Map<string, string>();
+      for (const entry of today.sections) {
+        if (!isRecord(entry)) continue;
+        const title = normalizeTitle(entry.title);
+        if (!title) continue;
+        const body = isString(entry.body) ? entry.body : "";
+        byTitle.set(title, body);
+      }
+      today.sections = ["Focus", "Relationships", "Action", "Reflection"].map((title) => ({
+        title,
+        body: byTitle.get(title) ?? "",
+      }));
     }
   }
 
   const cosmicWeather = dashboard.cosmicWeather;
   if (isRecord(cosmicWeather) && Array.isArray(cosmicWeather.transits)) {
     cosmicWeather.transits = cosmicWeather.transits.slice(0, 2).map((transit) => {
-      if (!isRecord(transit)) return transit;
-      const tone = normalizeTransitTone(transit.tone);
-      if (tone) {
-        transit.tone = tone;
+      if (!isRecord(transit)) {
+        return { title: "", tone: "neutral", meaning: "" };
       }
-      return transit;
+      const tone = normalizeTransitTone(transit.tone);
+      return {
+        title: isString(transit.title) ? transit.title : "",
+        tone: tone ?? "neutral",
+        meaning: isString(transit.meaning) ? transit.meaning : "",
+      };
     });
   }
 
@@ -519,24 +555,42 @@ export function normalizeDashboard(raw: unknown): unknown {
     if (Array.isArray(compatibility.bestFlowWith)) {
       const pad = ["", ""];
       compatibility.bestFlowWith = [
-        ...compatibility.bestFlowWith.slice(0, 2),
+        ...compatibility.bestFlowWith.slice(0, 2).map((entry) => (isString(entry) ? entry : "")),
         ...pad.slice(0, Math.max(0, 2 - compatibility.bestFlowWith.length)),
       ];
     }
     if (Array.isArray(compatibility.handleGentlyWith)) {
       const pad = [""];
       compatibility.handleGentlyWith = [
-        ...compatibility.handleGentlyWith.slice(0, 1),
+        ...compatibility.handleGentlyWith
+          .slice(0, 1)
+          .map((entry) => (isString(entry) ? entry : "")),
         ...pad.slice(0, Math.max(0, 1 - compatibility.handleGentlyWith.length)),
       ];
     }
+  }
+
+  const journalRitual = dashboard.journalRitual;
+  if (isRecord(journalRitual) && Array.isArray(journalRitual.starters)) {
+    const pad = ["", "", ""];
+    journalRitual.starters = [
+      ...journalRitual.starters.slice(0, 3).map((entry) => (isString(entry) ? entry : "")),
+      ...pad.slice(0, Math.max(0, 3 - journalRitual.starters.length)),
+    ];
   }
 
   const month = dashboard.month;
   if (isRecord(month) && Array.isArray(month.keyDates)) {
     const fallback = { dateLabel: "", title: "", note: "" };
     month.keyDates = [
-      ...month.keyDates.slice(0, 3),
+      ...month.keyDates.slice(0, 3).map((entry) => {
+        if (!isRecord(entry)) return { ...fallback };
+        return {
+          dateLabel: isString(entry.dateLabel) ? entry.dateLabel : "",
+          title: isString(entry.title) ? entry.title : "",
+          note: isString(entry.note) ? entry.note : "",
+        };
+      }),
       ...Array.from({ length: Math.max(0, 3 - month.keyDates.length) }, () => ({
         ...fallback,
       })),

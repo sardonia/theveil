@@ -128,9 +128,9 @@ export function buildDashboardPrompt(context: PromptContext): {
     "You are Veil, a warm, feminine astrologer with a loving aura. Premium modern tone. No doom. No medical or legal claims.",
     "Return ONE JSON object only.",
     "STRICT JSON: double-quote every key and string, no trailing commas, no comments, no markdown, no code fences.",
-    "Start directly with { and end with a single } on the last line. Close all braces and brackets.",
+    "Start directly with { and end with a single }. All braces/brackets must be closed.",
     "Output must be minified (single line).",
-    "Match TEMPLATE_JSON keys exactly. No extra keys.",
+    "Match TEMPLATE_JSON keys exactly. Do not add or omit keys.",
     "Numeric fields must be JSON numbers (not strings).",
     "Keep strings short.",
     "Transit tone must be exactly: soft | neutral | intense.",
@@ -159,7 +159,7 @@ export function buildRepairPrompt(modelOutput: string): string {
 
   return [
     "Fix the JSON below. Output corrected JSON only. Do not add text.",
-    "Start directly with { and end with a single } on the last line. Close all braces and brackets.",
+    "Start directly with { and end with a single }. All braces/brackets must be closed.",
     snippet,
   ].join("\n");
 }
@@ -169,9 +169,9 @@ export function buildRegeneratePrompt(context: PromptContext, templateJson: stri
     "You are Veil, a warm, feminine astrologer with a loving aura. Premium modern tone. No doom. No medical or legal claims.",
     "Return ONE JSON object only.",
     "STRICT JSON: double-quote every key and string, no trailing commas, no comments, no markdown, no code fences.",
-    "Start directly with { and end with a single } on the last line. Close all braces and brackets.",
+    "Start directly with { and end with a single }. All braces/brackets must be closed.",
     "Output must be minified (single line).",
-    "Match TEMPLATE_JSON keys exactly. No extra keys.",
+    "Match TEMPLATE_JSON keys exactly. Do not add or omit keys.",
     "Numeric fields must be JSON numbers (not strings).",
     "Keep strings short.",
     "Transit tone must be exactly: soft | neutral | intense.",

@@ -2,10 +2,20 @@ import type { AppState, DashboardPayload, ProfileDraft, SamplingParams } from ".
 import { HoroscopeRepository } from "../repository/horoscopeRepository";
 import { debugModelLog } from "../debug/logger";
 import { zodiacSign } from "../domain/zodiac";
-import { buildDashboardPrompt, buildRegeneratePrompt, buildRepairPrompt } from "./dashboardPrompt";
+import { buildDashboardPrompt } from "./dashboardPrompt";
 import { sanitizeAndParseDashboardPayload } from "../domain/dashboard";
-import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
 import { StubAdapter } from "../adapters/stubAdapter";
+
+// Keep in sync with domain/constants DEFAULT_SAMPLING_PARAMS for runtime fallback.
+const DEFAULT_SAMPLING_PARAMS: SamplingParams = {
+  temperature: 0.45,
+  topP: 0.9,
+  topK: 50,
+  repeatPenalty: 1.1,
+  maxTokens: 3600,
+  seed: null,
+  stop: [],
+};
 
 export interface PipelineContext {
   profile: ProfileDraft;
@@ -81,106 +91,18 @@ export class ValidatePayloadStep implements PipelineStep {
 
   async run(context: PipelineContext, state: AppState) {
     if (!context.payloadJson) return;
-
-    const buildPromptContext = () => ({
-      name: context.profile.name,
-      birthdate: context.profile.birthdate,
-      sign: zodiacSign(context.profile.birthdate),
-      localeDateLabel: context.localeDateLabel,
-      dateISO: context.dateISO,
-      seed: context.sampling?.seed,
-      mood: context.profile.mood,
-      personality: context.profile.personality,
-      generatedAtISO: new Date().toISOString(),
-    });
-
-    const bumpSampling = (sampling: SamplingParams | undefined, attempt: number): SamplingParams => {
-      const base = sampling ?? DEFAULT_SAMPLING_PARAMS;
-      const seed = base.seed == null ? null : ((base.seed + attempt * 1337) >>> 0);
-      const maxTokensBase = Math.max(base.maxTokens, 3000);
-      const maxTokens = Math.max(Math.round(maxTokensBase * 1.2), 3600) + attempt * 200;
-      const temperature = attempt === 0 ? base.temperature : Math.min(base.temperature, 0.3);
-      return { ...base, seed, maxTokens, temperature };
-    };
-
-    const isTruncationError = (message: string) => {
-      const m = message.toLowerCase();
-      return (
-        m.includes("unexpected eof") ||
-        m.includes("unexpected end") ||
-        m.includes("end of json") ||
-        m.includes("unterminated")
-      );
-    };
-
-    const isSyntaxLikeError = (message: string) => {
-      const m = message.toLowerCase();
-      return (
-        m.includes("property name") ||
-        m.includes("string literal") ||
-        m.includes("invalid") ||
-        m.includes("unexpected token")
-      );
-    };
-
-    const tryParse = (payloadJson: string) => sanitizeAndParseDashboardPayload(payloadJson);
-
-    // Try initial output + up to 2 retries.
-    let currentJson = context.payloadJson;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const result = tryParse(currentJson);
-      if (result.ok) {
-        context.payload = result.value;
-        debugModelLog(
-          "log",
-          attempt === 0 ? "pipeline:payload:validated" : "pipeline:payload:repair:validated",
-          {
-            meta: result.value.meta,
-            sections: result.value.today.sections.length,
-            attempt,
-          }
-        );
-        return;
+    const result = sanitizeAndParseDashboardPayload(context.payloadJson);
+    if (result.ok) {
+      if (result.info.missingBraceAdded) {
+        debugModelLog("warn", "pipeline:payload:recovered:missingBrace", {
+          payloadLength: context.payloadJson.length,
+        });
       }
-
-      const payloadHead = currentJson.slice(0, 200);
-      const payloadTail = currentJson.length > 200 ? currentJson.slice(-200) : "";
-      debugModelLog("warn", "pipeline:payload:invalid", {
-        error: result.error.message,
-        attempt,
-        payloadLength: currentJson.length,
-        payloadHead,
-        payloadTail,
-        wrapperFixApplied: result.info.wrapperFixApplied,
-        rootMergeApplied: result.info.rootMergeApplied,
+      context.payload = result.value;
+      debugModelLog("log", "pipeline:payload:validated", {
+        meta: result.value.meta,
+        sections: result.value.today.sections.length,
         missingBraceAdded: result.info.missingBraceAdded,
-        sanitizer: {
-          changed: result.info.changed,
-          codeFencesRemoved: result.info.codeFencesRemoved,
-          extractedJson: result.info.extractedJson,
-          trailingCommasRemoved: result.info.trailingCommasRemoved,
-          unquotedKeysFixed: result.info.unquotedKeysFixed,
-        },
-      });
-
-      if (!context.templateJson) break;
-
-      // For truncation or raw JSON syntax errors, it is usually better to regenerate
-      // from the template rather than "repair" a cut-off blob.
-      const promptContext = buildPromptContext();
-      const nextSampling = bumpSampling(context.sampling, attempt + 1);
-      const regenerate = isTruncationError(result.error.message) ||
-        isSyntaxLikeError(result.error.message);
-      const nextPrompt = regenerate
-        ? buildRegeneratePrompt(promptContext, context.templateJson)
-        : buildRepairPrompt(currentJson);
-
-      debugModelLog("log", "pipeline:payload:repair:start", {
-        attempt: attempt + 1,
-        mode: regenerate ? "regenerate" : "repair",
-        maxTokens: nextSampling.maxTokens,
-        temperature: nextSampling.temperature,
-        seed: nextSampling.seed,
       });
       return;
     }
@@ -196,6 +118,7 @@ export class ValidatePayloadStep implements PipelineStep {
       location: describeJsonErrorLocation(context.payloadJson, result.error.message),
       wrapperFixApplied: result.info.wrapperFixApplied,
       rootMergeApplied: result.info.rootMergeApplied,
+      missingBraceAdded: result.info.missingBraceAdded,
       sanitizer: {
         changed: result.info.changed,
         codeFencesRemoved: result.info.codeFencesRemoved,
@@ -210,7 +133,7 @@ export class ValidatePayloadStep implements PipelineStep {
       reason: "Model produced invalid JSON on first attempt",
     });
     const stubJson = await this.stub.generate(context.profile, context.dateISO, context.sampling);
-    const stubResult = tryParse(stubJson);
+    const stubResult = sanitizeAndParseDashboardPayload(stubJson);
     if (!stubResult.ok) {
       // This should never happen, but fail loudly if it does.
       throw new Error(stubResult.error.message);
