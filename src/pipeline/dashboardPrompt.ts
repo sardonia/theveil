@@ -26,20 +26,20 @@ function buildDashboardTemplate(context: PromptContext): string {
       headline: "__FILL__",
       subhead: "__FILL__",
       theme: "__FILL__",
-      energyScore: "__FILL_INT_0_100__",
+      energyScore: -1,
       bestHours: [
         { label: "__FILL__", start: "__FILL__", end: "__FILL__" },
         { label: "__FILL__", start: "__FILL__", end: "__FILL__" },
       ],
       ratings: {
-        love: "__FILL_INT_0_5__",
-        work: "__FILL_INT_0_5__",
-        money: "__FILL_INT_0_5__",
-        health: "__FILL_INT_0_5__",
+        love: -1,
+        work: -1,
+        money: -1,
+        health: -1,
       },
       lucky: {
         color: "__FILL__",
-        number: "__FILL_INT__",
+        number: -1,
         symbol: "__FILL__",
       },
       doDont: {
@@ -125,20 +125,16 @@ export function buildDashboardPrompt(context: PromptContext): {
 } {
   const templateJson = buildDashboardTemplate(context);
   const prompt = [
-    // NOTE: We include a "role" here because many GGUF chat models follow the
-    // first instruction block strongly. The Rust backend also injects a system
-    // message, but keeping this here improves portability.
-    "ROLE:",
-    "You are Veil: a warm, feminine astrologer with a loving aura. You write premium, modern astrology — gentle, confident, and creative — without doom or medical/legal claims.",
-    "",
-    "OUTPUT CONTRACT (MUST FOLLOW):",
-    "- Return ONE JSON object only. No markdown. No commentary.",
-    "- Strict JSON: double-quote every property name and every string. No trailing commas. No comments.",
-    "- Use JSON numbers (not strings) for numeric fields.",
-    "- Output must be COMPACT (minified): no extra whitespace or newlines.",
-    "- Do not add or remove keys. Match TEMPLATE_JSON keys exactly.",
-    "- Keep each text value short (typically 6–18 words).",
-    "",
+    "You are Veil, a warm, feminine astrologer with a loving aura. Premium modern tone. No doom. No medical or legal claims.",
+    "Return ONE JSON object only.",
+    "STRICT JSON: double-quote every key and string, no trailing commas, no comments, no markdown, no code fences.",
+    "Output must be minified (single line).",
+    "Match TEMPLATE_JSON keys exactly. No extra keys.",
+    "Numeric fields must be JSON numbers (not strings).",
+    "Keep strings short.",
+    "Transit tone must be exactly: soft | neutral | intense.",
+    "Root key order: meta, tabs, today, cosmicWeather, compatibility, journalRitual, week, month, year.",
+    "After today, the next root keys must be cosmicWeather, then compatibility, then journalRitual, then week, month, year. Do NOT insert '{' after commas at the root level.",
     "USER CONTEXT:",
     `name=${context.name}`,
     `birthdate=${context.birthdate}`,
@@ -148,13 +144,6 @@ export function buildDashboardPrompt(context: PromptContext): {
     `mood=${context.mood}`,
     `personality=${context.personality}`,
     `seed=${context.seed ?? ""}`,
-    "",
-    "STRUCTURE RULES:",
-    "- today.bestHours: exactly 2 items",
-    "- month.keyDates: exactly 3 items",
-    "- year.quarters: exactly 4 items (Q1–Q4)",
-    "- cosmicWeather.transits: 0–2 items; tone is soft|neutral|intense",
-    "",
     "TEMPLATE_JSON:",
     templateJson,
   ].join("\n");
@@ -162,57 +151,29 @@ export function buildDashboardPrompt(context: PromptContext): {
   return { prompt, templateJson };
 }
 
-export function buildRepairPrompt(
-  context: PromptContext,
-  templateJson: string,
-  modelOutput: string
-): string {
-  // MODEL_OUTPUT can be very long (or even cut off). Keep a limited context
-  // window to avoid blowing the prompt budget.
-  const head = modelOutput.slice(0, 2200);
+export function buildRepairPrompt(modelOutput: string): string {
+  const head = modelOutput.slice(0, 2000);
   const tail = modelOutput.length > 2400 ? modelOutput.slice(-400) : "";
   const snippet = tail ? `${head}\n...\n${tail}` : head;
 
   return [
-    "ROLE:",
-    "You are Veil: a warm, feminine astrologer. You fix JSON outputs with care and precision.",
-    "",
-    "TASK (MUST FOLLOW):",
-    "- Output STRICT JSON ONLY: quoted keys/strings, no trailing commas, no markdown.",
-    "- Produce ONE JSON object matching TEMPLATE_JSON keys exactly.",
-    "- Keep text short and soothing; ensure numeric fields are numbers.",
-    "- Output must be COMPACT (minified).",
-    "",
-    "USER CONTEXT:",
-    `name=${context.name}`,
-    `birthdate=${context.birthdate}`,
-    `sunSign=${context.sign}`,
-    `dateISO=${context.dateISO}`,
-    `localeDateLabel=${context.localeDateLabel}`,
-    `mood=${context.mood}`,
-    `personality=${context.personality}`,
-    `seed=${context.seed ?? ""}`,
-    "",
-    "TEMPLATE_JSON:",
-    templateJson,
-    "",
-    "MODEL_OUTPUT_SNIPPET:",
+    "Fix the JSON below. Output corrected JSON only. Do not add text.",
     snippet,
   ].join("\n");
 }
 
 export function buildRegeneratePrompt(context: PromptContext, templateJson: string): string {
   return [
-    "ROLE:",
-    "You are Veil: a warm, feminine astrologer with a loving aura.",
-    "",
-    "TASK (MUST FOLLOW):",
-    "- Return ONE STRICT JSON object only (quoted keys/strings, no trailing commas).",
-    "- Match TEMPLATE_JSON keys exactly. Do not add/remove keys.",
-    "- Use JSON numbers for numeric fields.",
-    "- Output must be COMPACT (minified).",
-    "- Keep each text value short (6–18 words).",
-    "",
+    "You are Veil, a warm, feminine astrologer with a loving aura. Premium modern tone. No doom. No medical or legal claims.",
+    "Return ONE JSON object only.",
+    "STRICT JSON: double-quote every key and string, no trailing commas, no comments, no markdown, no code fences.",
+    "Output must be minified (single line).",
+    "Match TEMPLATE_JSON keys exactly. No extra keys.",
+    "Numeric fields must be JSON numbers (not strings).",
+    "Keep strings short.",
+    "Transit tone must be exactly: soft | neutral | intense.",
+    "Root key order: meta, tabs, today, cosmicWeather, compatibility, journalRitual, week, month, year.",
+    "After today, the next root keys must be cosmicWeather, then compatibility, then journalRitual, then week, month, year. Do NOT insert '{' after commas at the root level.",
     "USER CONTEXT:",
     `name=${context.name}`,
     `birthdate=${context.birthdate}`,
@@ -222,7 +183,6 @@ export function buildRegeneratePrompt(context: PromptContext, templateJson: stri
     `mood=${context.mood}`,
     `personality=${context.personality}`,
     `seed=${context.seed ?? ""}`,
-    "",
     "TEMPLATE_JSON:",
     templateJson,
   ].join("\n");

@@ -65,7 +65,7 @@ export const DEFAULT_SAMPLING_PARAMS = {
   // Token budget for model output. The dashboard schema is large, and many
   // models will truncate around ~1200 tokens. We keep this generous and rely
   // on strict prompting + JSON extraction to ignore any trailing text.
-  maxTokens: 3000,
+  maxTokens: 3600,
   seed: null,
   stop: [],
 };

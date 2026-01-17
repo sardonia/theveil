@@ -4,6 +4,20 @@ type ValidationResult =
   | { valid: true; payload: DashboardPayload }
   | { valid: false; error: string };
 
+type SanitizationInfo = {
+  changed: boolean;
+  codeFencesRemoved: boolean;
+  extractedJson: boolean;
+  trailingCommasRemoved: boolean;
+  unquotedKeysFixed: boolean;
+  rootMergeApplied: boolean;
+  wrapperFixApplied: boolean;
+};
+
+type SanitizedParseResult =
+  | { ok: true; value: DashboardPayload; info: SanitizationInfo }
+  | { ok: false; error: Error; info: SanitizationInfo };
+
 const sectionTitles = new Set(["Focus", "Relationships", "Action", "Reflection"]);
 const transitTones = new Set(["soft", "neutral", "intense"]);
 const quarterLabels = new Set(["Q1", "Q2", "Q3", "Q4"]);
@@ -51,9 +65,56 @@ function stripCodeFences(text: string): string {
     .trim();
 }
 
-function removeTrailingCommas(text: string): string {
+function extractJsonSlice(text: string): { slice: string | null; extracted: boolean } {
+  const startIndex = text.indexOf("{");
+  const endIndex = text.lastIndexOf("}");
+  if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
+    return { slice: null, extracted: false };
+  }
+  const slice = text.slice(startIndex, endIndex + 1);
+  return { slice, extracted: slice.length !== text.length };
+}
+
+function removeTrailingCommas(text: string): { text: string; removed: boolean } {
   // Common "almost JSON" error: trailing commas before } or ]
-  return text.replace(/,\s*([}\]])/g, "$1");
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  let removed = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      out += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === "\"") {
+      inString = true;
+      out += ch;
+      continue;
+    }
+
+    if (ch === ",") {
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j])) j += 1;
+      const next = text[j];
+      if (next === "}" || next === "]") {
+        removed = true;
+        continue;
+      }
+    }
+
+    out += ch;
+  }
+  return { text: out, removed };
 }
 
 function quoteUnquotedKeys(text: string): string {
@@ -154,6 +215,328 @@ function quoteUnquotedKeys(text: string): string {
   return out;
 }
 
+function mergeRootObjects(text: string): { text: string; applied: boolean } {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  let depth = 0;
+  let applied = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+
+    if (inString) {
+      out += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      out += ch;
+      continue;
+    }
+
+    if (ch === "{") {
+      depth += 1;
+      out += ch;
+      continue;
+    }
+
+    if (ch === "}") {
+      if (depth === 1) {
+        let j = i + 1;
+        while (j < text.length && /\s/.test(text[j])) j += 1;
+        if (text[j] === ",") {
+          let k = j + 1;
+          while (k < text.length && /\s/.test(text[k])) k += 1;
+          if (text[k] === "{") {
+            applied = true;
+            i = k;
+            continue;
+          }
+        }
+      }
+      depth -= 1;
+      out += ch;
+      continue;
+    }
+
+    if (ch === "[") {
+      depth += 1;
+      out += ch;
+      continue;
+    }
+    if (ch === "]") {
+      depth -= 1;
+      out += ch;
+      continue;
+    }
+
+    out += ch;
+  }
+
+  return { text: out, applied };
+}
+
+function unwrapAnonymousRootObjects(text: string): { text: string; applied: boolean } {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  let depth = 0;
+  let applied = false;
+  let pendingWrapperStart: number | null = null;
+  let skippingWrapper = false;
+  let wrapperEndDepth = 0;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+
+    if (inString) {
+      out += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      out += ch;
+      continue;
+    }
+
+    if (ch === "," && depth === 1) {
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j])) j += 1;
+      if (text[j] === "{") {
+        pendingWrapperStart = j;
+        applied = true;
+      }
+      out += ch;
+      continue;
+    }
+
+    if (pendingWrapperStart !== null && i === pendingWrapperStart && ch === "{") {
+      skippingWrapper = true;
+      wrapperEndDepth = depth + 1;
+      depth += 1;
+      pendingWrapperStart = null;
+      continue;
+    }
+
+    if (ch === "{") {
+      depth += 1;
+      out += ch;
+      continue;
+    }
+    if (ch === "}") {
+      if (skippingWrapper && depth === wrapperEndDepth) {
+        depth -= 1;
+        skippingWrapper = false;
+        continue;
+      }
+      depth -= 1;
+      out += ch;
+      continue;
+    }
+
+    if (ch === "[") {
+      depth += 1;
+      out += ch;
+      continue;
+    }
+    if (ch === "]") {
+      depth -= 1;
+      out += ch;
+      continue;
+    }
+
+    out += ch;
+  }
+
+  return { text: out, applied };
+}
+
+function sanitizeDashboardPayload(raw: string): { sanitized: string; info: SanitizationInfo } {
+  const trimmed = raw.trim();
+  const noFences = stripCodeFences(trimmed);
+  const { slice, extracted } = extractJsonSlice(noFences);
+  const extractedJson = slice ?? noFences;
+  const { text: withoutCommas, removed } = removeTrailingCommas(extractedJson);
+  const quotedKeys = quoteUnquotedKeys(withoutCommas);
+  const { text: merged, applied: rootMergeApplied } = mergeRootObjects(quotedKeys);
+  const { text: unwrapped, applied } = unwrapAnonymousRootObjects(merged);
+  return {
+    sanitized: unwrapped,
+    info: {
+      changed: unwrapped !== raw,
+      codeFencesRemoved: noFences !== trimmed,
+      extractedJson: extracted,
+      trailingCommasRemoved: removed,
+      unquotedKeysFixed: quotedKeys !== withoutCommas,
+      rootMergeApplied,
+      wrapperFixApplied: applied,
+    },
+  };
+}
+
+function coerceNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function clampInt(value: unknown, min: number, max: number): number | null {
+  const numeric = coerceNumber(value);
+  if (numeric === null) return null;
+  const rounded = Math.round(numeric);
+  return Math.min(max, Math.max(min, rounded));
+}
+
+function normalizeTransitTone(value: unknown): string | null {
+  if (!isString(value)) return null;
+  const normalized = value.toLowerCase();
+  if (transitTones.has(normalized)) return normalized;
+  if (
+    normalized.includes("soft") ||
+    normalized.includes("gentle") ||
+    normalized.includes("hope") ||
+    normalized.includes("uplift")
+  ) {
+    return "soft";
+  }
+  if (
+    normalized.includes("intense") ||
+    normalized.includes("strong") ||
+    normalized.includes("volatile") ||
+    normalized.includes("disrupt")
+  ) {
+    return "intense";
+  }
+  return "neutral";
+}
+
+export function normalizeDashboard(raw: unknown): unknown {
+  if (!isRecord(raw)) return raw;
+  const dashboard = raw as Record<string, unknown>;
+  const today = dashboard.today;
+  if (isRecord(today)) {
+    const energyScore = clampInt(today.energyScore, 0, 100);
+    if (energyScore !== null) {
+      today.energyScore = energyScore;
+    }
+    const ratings = today.ratings;
+    if (isRecord(ratings)) {
+      const love = clampInt(ratings.love, 0, 5);
+      const work = clampInt(ratings.work, 0, 5);
+      const money = clampInt(ratings.money, 0, 5);
+      const health = clampInt(ratings.health, 0, 5);
+      if (love !== null) ratings.love = love;
+      if (work !== null) ratings.work = work;
+      if (money !== null) ratings.money = money;
+      if (health !== null) ratings.health = health;
+    }
+    const lucky = today.lucky;
+    if (isRecord(lucky)) {
+      const number = clampInt(lucky.number, 0, 999);
+      if (number !== null) {
+        lucky.number = number;
+      }
+    }
+    if (Array.isArray(today.bestHours)) {
+      const fallback = { label: "", start: "", end: "" };
+      today.bestHours = [
+        ...today.bestHours.slice(0, 2),
+        ...Array.from({ length: Math.max(0, 2 - today.bestHours.length) }, () => ({
+          ...fallback,
+        })),
+      ];
+    }
+  }
+
+  const cosmicWeather = dashboard.cosmicWeather;
+  if (isRecord(cosmicWeather) && Array.isArray(cosmicWeather.transits)) {
+    cosmicWeather.transits = cosmicWeather.transits.slice(0, 2).map((transit) => {
+      if (!isRecord(transit)) return transit;
+      const tone = normalizeTransitTone(transit.tone);
+      if (tone) {
+        transit.tone = tone;
+      }
+      return transit;
+    });
+  }
+
+  const compatibility = dashboard.compatibility;
+  if (isRecord(compatibility)) {
+    if (Array.isArray(compatibility.bestFlowWith)) {
+      const pad = ["", ""];
+      compatibility.bestFlowWith = [
+        ...compatibility.bestFlowWith.slice(0, 2),
+        ...pad.slice(0, Math.max(0, 2 - compatibility.bestFlowWith.length)),
+      ];
+    }
+    if (Array.isArray(compatibility.handleGentlyWith)) {
+      const pad = [""];
+      compatibility.handleGentlyWith = [
+        ...compatibility.handleGentlyWith.slice(0, 1),
+        ...pad.slice(0, Math.max(0, 1 - compatibility.handleGentlyWith.length)),
+      ];
+    }
+  }
+
+  const month = dashboard.month;
+  if (isRecord(month) && Array.isArray(month.keyDates)) {
+    const fallback = { dateLabel: "", title: "", note: "" };
+    month.keyDates = [
+      ...month.keyDates.slice(0, 3),
+      ...Array.from({ length: Math.max(0, 3 - month.keyDates.length) }, () => ({
+        ...fallback,
+      })),
+    ];
+  }
+
+  const year = dashboard.year;
+  if (isRecord(year)) {
+    if (Array.isArray(year.quarters)) {
+      const byLabel = new Map<string, { label: string; focus: string }>();
+      for (const entry of year.quarters) {
+        if (isRecord(entry) && isString(entry.label) && isString(entry.focus)) {
+          byLabel.set(entry.label, { label: entry.label, focus: entry.focus });
+        }
+      }
+      year.quarters = ["Q1", "Q2", "Q3", "Q4"].map((label) => {
+        const existing = byLabel.get(label);
+        return existing ?? { label, focus: "" };
+      });
+    }
+    if (Array.isArray(year.powerMonths)) {
+      const pad = ["", ""];
+      year.powerMonths = [
+        ...year.powerMonths.slice(0, 2),
+        ...pad.slice(0, Math.max(0, 2 - year.powerMonths.length)),
+      ];
+    }
+  }
+
+  return dashboard;
+}
+
 export function extractFirstJsonObject(text: string): string | null {
   const startIndex = text.indexOf("{");
   if (startIndex === -1) return null;
@@ -167,13 +550,13 @@ export function extractFirstJsonObject(text: string): string | null {
         escaped = false;
       } else if (char === "\\") {
         escaped = true;
-      } else if (char === "\"") {
+      } else if (char === '"') {
         inString = false;
       }
       continue;
     }
 
-    if (char === "\"") {
+    if (char === '"') {
       inString = true;
     } else if (char === "{") {
       depth += 1;
@@ -188,21 +571,14 @@ export function extractFirstJsonObject(text: string): string | null {
 }
 
 export function parseDashboardPayload(json: string): ValidationResult {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(json);
-  } catch (error) {
-    // Try a best-effort cleanup path for common model mistakes.
-    try {
-      const cleaned = quoteUnquotedKeys(removeTrailingCommas(stripCodeFences(json)));
-      raw = JSON.parse(cleaned);
-    } catch {
-      return errorResult(
-        error instanceof Error ? error.message : "Invalid JSON returned by model."
-      );
-    }
+  const result = sanitizeAndParseDashboardPayload(json);
+  if (!result.ok) {
+    return errorResult(result.error.message);
   }
+  return { valid: true, payload: result.value };
+}
 
+function validateDashboardPayload(raw: Record<string, unknown>): ValidationResult {
   if (!isRecord(raw)) {
     return errorResult("Payload root must be an object.");
   }
@@ -417,4 +793,32 @@ export function parseDashboardPayload(json: string): ValidationResult {
   }
 
   return { valid: true, payload: raw as unknown as DashboardPayload };
+}
+
+export function sanitizeAndParseDashboardPayload(json: string): SanitizedParseResult {
+  const { sanitized, info } = sanitizeDashboardPayload(json);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(sanitized);
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error : new Error("Invalid JSON returned by model."),
+      info,
+    };
+  }
+
+  const normalized = normalizeDashboard(parsed);
+  if (!isRecord(normalized)) {
+    return {
+      ok: false,
+      error: new Error("Payload root must be an object."),
+      info,
+    };
+  }
+  const validation = validateDashboardPayload(normalized);
+  if (!validation.valid) {
+    return { ok: false, error: new Error(validation.error), info };
+  }
+  return { ok: true, value: validation.payload, info };
 }
