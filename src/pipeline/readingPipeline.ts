@@ -6,6 +6,17 @@ import { buildDashboardPrompt } from "./dashboardPrompt";
 import { sanitizeAndParseDashboardPayload } from "../domain/dashboard";
 import { StubAdapter } from "../adapters/stubAdapter";
 
+// Keep in sync with domain/constants DEFAULT_SAMPLING_PARAMS for runtime fallback.
+const DEFAULT_SAMPLING_PARAMS: SamplingParams = {
+  temperature: 0.45,
+  topP: 0.9,
+  topK: 50,
+  repeatPenalty: 1.1,
+  maxTokens: 3600,
+  seed: null,
+  stop: [],
+};
+
 export interface PipelineContext {
   profile: ProfileDraft;
   dateISO: string;
