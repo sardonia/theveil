@@ -409,29 +409,6 @@ function clampInt(value: unknown, min: number, max: number): number | null {
   return Math.min(max, Math.max(min, rounded));
 }
 
-function normalizeTransitTone(value: unknown): string | null {
-  if (!isString(value)) return null;
-  const normalized = value.toLowerCase();
-  if (transitTones.has(normalized)) return normalized;
-  if (
-    normalized.includes("soft") ||
-    normalized.includes("gentle") ||
-    normalized.includes("hope") ||
-    normalized.includes("uplift")
-  ) {
-    return "soft";
-  }
-  if (
-    normalized.includes("intense") ||
-    normalized.includes("strong") ||
-    normalized.includes("volatile") ||
-    normalized.includes("disrupt")
-  ) {
-    return "intense";
-  }
-  return "neutral";
-}
-
 export function normalizeDashboard(raw: unknown): unknown {
   if (!isRecord(raw)) return raw;
   const dashboard = raw as Record<string, unknown>;
@@ -472,14 +449,7 @@ export function normalizeDashboard(raw: unknown): unknown {
 
   const cosmicWeather = dashboard.cosmicWeather;
   if (isRecord(cosmicWeather) && Array.isArray(cosmicWeather.transits)) {
-    cosmicWeather.transits = cosmicWeather.transits.slice(0, 2).map((transit) => {
-      if (!isRecord(transit)) return transit;
-      const tone = normalizeTransitTone(transit.tone);
-      if (tone) {
-        transit.tone = tone;
-      }
-      return transit;
-    });
+    cosmicWeather.transits = cosmicWeather.transits.slice(0, 2);
   }
 
   const compatibility = dashboard.compatibility;

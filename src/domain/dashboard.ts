@@ -219,6 +219,8 @@ function mergeRootObjects(text: string): { text: string; applied: boolean } {
   let out = "";
   let inString = false;
   let escaped = false;
+  // Track object (curly brace) depth only. Arrays must NOT affect whether we
+  // are at the root-object boundary.
   let depth = 0;
   let applied = false;
 
@@ -268,17 +270,6 @@ function mergeRootObjects(text: string): { text: string; applied: boolean } {
       continue;
     }
 
-    if (ch === "[") {
-      depth += 1;
-      out += ch;
-      continue;
-    }
-    if (ch === "]") {
-      depth -= 1;
-      out += ch;
-      continue;
-    }
-
     out += ch;
   }
 
@@ -289,6 +280,8 @@ function unwrapAnonymousRootObjects(text: string): { text: string; applied: bool
   let out = "";
   let inString = false;
   let escaped = false;
+  // Track object (curly brace) depth only. Arrays must NOT affect whether we
+  // are at the root-object boundary.
   let depth = 0;
   let applied = false;
   let pendingWrapperStart: number | null = null;
@@ -351,17 +344,6 @@ function unwrapAnonymousRootObjects(text: string): { text: string; applied: bool
       continue;
     }
 
-    if (ch === "[") {
-      depth += 1;
-      out += ch;
-      continue;
-    }
-    if (ch === "]") {
-      depth -= 1;
-      out += ch;
-      continue;
-    }
-
     out += ch;
   }
 
@@ -409,29 +391,6 @@ function clampInt(value: unknown, min: number, max: number): number | null {
   return Math.min(max, Math.max(min, rounded));
 }
 
-function normalizeTransitTone(value: unknown): string | null {
-  if (!isString(value)) return null;
-  const normalized = value.toLowerCase();
-  if (transitTones.has(normalized)) return normalized;
-  if (
-    normalized.includes("soft") ||
-    normalized.includes("gentle") ||
-    normalized.includes("hope") ||
-    normalized.includes("uplift")
-  ) {
-    return "soft";
-  }
-  if (
-    normalized.includes("intense") ||
-    normalized.includes("strong") ||
-    normalized.includes("volatile") ||
-    normalized.includes("disrupt")
-  ) {
-    return "intense";
-  }
-  return "neutral";
-}
-
 export function normalizeDashboard(raw: unknown): unknown {
   if (!isRecord(raw)) return raw;
   const dashboard = raw as Record<string, unknown>;
@@ -472,14 +431,7 @@ export function normalizeDashboard(raw: unknown): unknown {
 
   const cosmicWeather = dashboard.cosmicWeather;
   if (isRecord(cosmicWeather) && Array.isArray(cosmicWeather.transits)) {
-    cosmicWeather.transits = cosmicWeather.transits.slice(0, 2).map((transit) => {
-      if (!isRecord(transit)) return transit;
-      const tone = normalizeTransitTone(transit.tone);
-      if (tone) {
-        transit.tone = tone;
-      }
-      return transit;
-    });
+    cosmicWeather.transits = cosmicWeather.transits.slice(0, 2);
   }
 
   const compatibility = dashboard.compatibility;
@@ -801,11 +753,24 @@ export function sanitizeAndParseDashboardPayload(json: string): SanitizedParseRe
   try {
     parsed = JSON.parse(sanitized);
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error : new Error("Invalid JSON returned by model."),
-      info,
-    };
+    // Many local models occasionally emit multiple root objects separated by a
+    // comma (e.g. `{...},{...}`) or insert an anonymous wrapper object after a
+    // comma (e.g. `...,{\"cosmicWeather\":...}`). Both cases are invalid JSON,
+    // but can be recovered without forcing an expensive regeneration.
+    const recovered = tryParsePossiblyMultipleRootObjects(sanitized);
+    if (!recovered) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error : new Error("Invalid JSON returned by model."),
+        info,
+      };
+    }
+
+    parsed = recovered.value;
+    if (recovered.appliedRootMerge) {
+      info.rootMergeApplied = true;
+      info.changed = true;
+    }
   }
 
   const normalized = normalizeDashboard(parsed);
@@ -821,4 +786,102 @@ export function sanitizeAndParseDashboardPayload(json: string): SanitizedParseRe
     return { ok: false, error: new Error(validation.error), info };
   }
   return { ok: true, value: validation.payload, info };
+}
+
+function tryParsePossiblyMultipleRootObjects(
+  text: string
+): { value: unknown; appliedRootMerge: boolean } | null {
+  const trimmed = text.trim();
+
+  // 1) Common case: multiple objects separated by commas.
+  // Wrap in an array, parse, and shallow-merge objects.
+  try {
+    const arr = JSON.parse(`[${trimmed}]`) as unknown;
+    if (Array.isArray(arr) && arr.length > 0 && arr.every(isRecord)) {
+      const merged = deepMergeRecords(arr);
+      return { value: merged, appliedRootMerge: arr.length > 1 };
+    }
+  } catch {
+    // fall through
+  }
+
+  // 2) More robust: extract any top-level `{...}` blocks, parse, and merge.
+  const blocks = extractTopLevelJsonObjectBlocks(trimmed);
+  if (blocks.length >= 2) {
+    const objects: Record<string, unknown>[] = [];
+    for (const block of blocks) {
+      try {
+        const obj = JSON.parse(block) as unknown;
+        if (!isRecord(obj)) return null;
+        objects.push(obj);
+      } catch {
+        return null;
+      }
+    }
+    return { value: deepMergeRecords(objects), appliedRootMerge: true };
+  }
+
+  return null;
+}
+
+function deepMergeRecords(objects: Record<string, unknown>[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const obj of objects) {
+    for (const [key, value] of Object.entries(obj)) {
+      const existing = out[key];
+      if (isRecord(existing) && isRecord(value)) {
+        out[key] = deepMergeRecords([existing, value]);
+      } else {
+        out[key] = value;
+      }
+    }
+  }
+  return out;
+}
+
+function extractTopLevelJsonObjectBlocks(text: string): string[] {
+  const blocks: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth += 1;
+      continue;
+    }
+    if (ch === "}") {
+      depth = Math.max(0, depth - 1);
+      if (depth === 0 && start !== -1) {
+        blocks.push(text.slice(start, i + 1));
+        start = -1;
+      }
+      continue;
+    }
+  }
+
+  return blocks;
 }

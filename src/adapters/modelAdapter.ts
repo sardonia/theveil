@@ -57,11 +57,14 @@ export class EmbeddedModelAdapter implements HoroscopeAdapter {
           window.clearInterval(logInterval);
         }
       });
+      const headLen = 240;
+      const tailLen = 240;
+      const head = payloadJson.slice(0, headLen);
+      const tail = payloadJson.length > headLen + tailLen ? payloadJson.slice(-tailLen) : "";
       debugModelLog("log", "adapter:model:response", {
         payloadLength: payloadJson.length,
-      });
-      debugModelLog("log", "adapter:model:response:json", {
-        payloadJson,
+        payloadHead: head,
+        payloadTail: tail,
       });
       return payloadJson;
     } catch (error) {

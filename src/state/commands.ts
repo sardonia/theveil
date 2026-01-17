@@ -115,6 +115,16 @@ export class CommandBus {
         { type: "ReadingGenerationStarted" },
         { type: "RouteChanged", route: "reading" },
       ]);
+
+      // Give the UI a chance to paint the route change + loading spinner before
+      // we start the (potentially long) model call.
+      await new Promise<void>((resolve) => {
+        if (typeof requestAnimationFrame === "function") {
+          requestAnimationFrame(() => resolve());
+        } else {
+          setTimeout(resolve, 0);
+        }
+      });
       debugLog("log", "command:GenerateReading:routeChanged", {
         route: this.context.getState().ui.route,
       });

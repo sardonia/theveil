@@ -38,8 +38,12 @@ export class BuildPromptStep implements PipelineStep {
     });
     context.prompt = prompt;
     context.templateJson = templateJson;
+    const promptPreview = previewText(context.prompt ?? "");
     debugModelLog("log", "pipeline:prompt:built", {
-      prompt: context.prompt,
+      promptLength: promptPreview.length,
+      promptHead: promptPreview.head,
+      promptTail: promptPreview.tail,
+      templateLength: templateJson.length,
     });
   }
 }
@@ -92,12 +96,23 @@ export class ValidatePayloadStep implements PipelineStep {
       generatedAtISO: new Date().toISOString(),
     });
 
-    const bumpSampling = (sampling: SamplingParams | undefined, attempt: number): SamplingParams => {
+    const bumpSampling = (
+      sampling: SamplingParams | undefined,
+      attempt: number,
+      reason: "truncation" | "other"
+    ): SamplingParams => {
       const base = sampling ?? DEFAULT_SAMPLING_PARAMS;
       const seed = base.seed == null ? null : ((base.seed + attempt * 1337) >>> 0);
-      const maxTokensBase = Math.max(base.maxTokens, 3000);
-      const maxTokens = Math.max(Math.round(maxTokensBase * 1.2), 3600) + attempt * 200;
-      const temperature = attempt === 0 ? base.temperature : Math.min(base.temperature, 0.3);
+
+      // Don't blow up maxTokens for every retry — that makes retries slower and
+      // doesn't help for syntax issues. Only bump when we see truncation.
+      const maxTokens = reason === "truncation"
+        ? Math.min(Math.round(base.maxTokens * 1.5) + 200, 3600)
+        : base.maxTokens;
+
+      // Slightly reduce temperature on retries to keep JSON structured.
+      const temperature = attempt === 0 ? base.temperature : Math.min(base.temperature, 0.35);
+
       return { ...base, seed, maxTokens, temperature };
     };
 
@@ -123,9 +138,10 @@ export class ValidatePayloadStep implements PipelineStep {
 
     const tryParse = (payloadJson: string) => sanitizeAndParseDashboardPayload(payloadJson);
 
-    // Try initial output + up to 2 retries.
+    // Try initial output + ONE retry. Keeping the cap low prevents worst-case
+    // 60–90 second waits when a model has occasional JSON drift.
     let currentJson = context.payloadJson;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
       const result = tryParse(currentJson);
       if (result.ok) {
         context.payload = result.value;
@@ -162,19 +178,19 @@ export class ValidatePayloadStep implements PipelineStep {
 
       if (!context.templateJson) break;
 
-      // For truncation or raw JSON syntax errors, it is usually better to regenerate
-      // from the template rather than "repair" a cut-off blob.
+      const isTruncation = isTruncationError(result.error.message);
+      const isSyntax = isSyntaxLikeError(result.error.message);
+
       const promptContext = buildPromptContext();
-      const nextSampling = bumpSampling(context.sampling, attempt + 1);
-      const regenerate = isTruncationError(result.error.message) ||
-        isSyntaxLikeError(result.error.message);
-      const nextPrompt = regenerate
+      const mode: "regenerate" | "repair" = isTruncation ? "regenerate" : isSyntax ? "repair" : "regenerate";
+      const nextSampling = bumpSampling(context.sampling, attempt + 1, isTruncation ? "truncation" : "other");
+      const nextPrompt = mode === "regenerate"
         ? buildRegeneratePrompt(promptContext, context.templateJson)
         : buildRepairPrompt(currentJson);
 
       debugModelLog("log", "pipeline:payload:repair:start", {
         attempt: attempt + 1,
-        mode: regenerate ? "regenerate" : "repair",
+        mode,
         maxTokens: nextSampling.maxTokens,
         temperature: nextSampling.temperature,
         seed: nextSampling.seed,
@@ -210,6 +226,22 @@ function hashSeed(input: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+function previewText(
+  text: string,
+  head = 220,
+  tail = 220
+): { length: number; head: string; tail: string } {
+  const length = text.length;
+  if (length <= head + tail + 20) {
+    return { length, head: text, tail: "" };
+  }
+  return {
+    length,
+    head: text.slice(0, head),
+    tail: text.slice(Math.max(0, length - tail)),
+  };
 }
 
 function buildSamplingParams(
