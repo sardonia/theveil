@@ -12,6 +12,7 @@ type SanitizationInfo = {
   unquotedKeysFixed: boolean;
   rootMergeApplied: boolean;
   wrapperFixApplied: boolean;
+  missingBraceAdded: boolean;
 };
 
 type SanitizedParseResult =
@@ -368,6 +369,35 @@ function unwrapAnonymousRootObjects(text: string): { text: string; applied: bool
   return { text: out, applied };
 }
 
+function closeMissingBraces(text: string): { text: string; added: boolean } {
+  let inString = false;
+  let escaped = false;
+  let depth = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") depth += 1;
+    if (ch === "}") depth -= 1;
+  }
+  if (depth <= 0) {
+    return { text, added: false };
+  }
+  return { text: text + "}".repeat(depth), added: true };
+}
+
 function sanitizeDashboardPayload(raw: string): { sanitized: string; info: SanitizationInfo } {
   const trimmed = raw.trim();
   const noFences = stripCodeFences(trimmed);
@@ -377,16 +407,18 @@ function sanitizeDashboardPayload(raw: string): { sanitized: string; info: Sanit
   const quotedKeys = quoteUnquotedKeys(withoutCommas);
   const { text: merged, applied: rootMergeApplied } = mergeRootObjects(quotedKeys);
   const { text: unwrapped, applied } = unwrapAnonymousRootObjects(merged);
+  const { text: braceFixed, added } = closeMissingBraces(unwrapped);
   return {
-    sanitized: unwrapped,
+    sanitized: braceFixed,
     info: {
-      changed: unwrapped !== raw,
+      changed: braceFixed !== raw,
       codeFencesRemoved: noFences !== trimmed,
       extractedJson: extracted,
       trailingCommasRemoved: removed,
       unquotedKeysFixed: quotedKeys !== withoutCommas,
       rootMergeApplied,
       wrapperFixApplied: applied,
+      missingBraceAdded: added,
     },
   };
 }
@@ -407,6 +439,29 @@ function clampInt(value: unknown, min: number, max: number): number | null {
   if (numeric === null) return null;
   const rounded = Math.round(numeric);
   return Math.min(max, Math.max(min, rounded));
+}
+
+function normalizeTransitTone(value: unknown): string | null {
+  if (!isString(value)) return null;
+  const normalized = value.toLowerCase();
+  if (transitTones.has(normalized)) return normalized;
+  if (
+    normalized.includes("soft") ||
+    normalized.includes("gentle") ||
+    normalized.includes("hope") ||
+    normalized.includes("uplift")
+  ) {
+    return "soft";
+  }
+  if (
+    normalized.includes("intense") ||
+    normalized.includes("strong") ||
+    normalized.includes("volatile") ||
+    normalized.includes("disrupt")
+  ) {
+    return "intense";
+  }
+  return "neutral";
 }
 
 export function normalizeDashboard(raw: unknown): unknown {
@@ -449,7 +504,14 @@ export function normalizeDashboard(raw: unknown): unknown {
 
   const cosmicWeather = dashboard.cosmicWeather;
   if (isRecord(cosmicWeather) && Array.isArray(cosmicWeather.transits)) {
-    cosmicWeather.transits = cosmicWeather.transits.slice(0, 2);
+    cosmicWeather.transits = cosmicWeather.transits.slice(0, 2).map((transit) => {
+      if (!isRecord(transit)) return transit;
+      const tone = normalizeTransitTone(transit.tone);
+      if (tone) {
+        transit.tone = tone;
+      }
+      return transit;
+    });
   }
 
   const compatibility = dashboard.compatibility;

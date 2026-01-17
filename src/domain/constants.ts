@@ -60,9 +60,12 @@ export const DEFAULT_SAMPLING_PARAMS = {
   topP: 0.9,
   topK: 50,
   repeatPenalty: 1.1,
-  // Keep the first pass short for responsiveness.
-  // If a model truncates (EOF), the pipeline will bump maxTokens on the retry.
-  maxTokens: 1400,
+  // Dashboard payloads are fairly large; 1200 tokens regularly truncates JSON.
+  // Keep this high enough that year/month sections don't get cut off.
+  // Token budget for model output. The dashboard schema is large, and many
+  // models will truncate around ~1200 tokens. We keep this generous and rely
+  // on strict prompting + JSON extraction to ignore any trailing text.
+  maxTokens: 3600,
   seed: null,
   stop: [],
 };

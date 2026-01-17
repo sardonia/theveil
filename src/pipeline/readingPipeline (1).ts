@@ -151,6 +151,7 @@ export class ValidatePayloadStep implements PipelineStep {
         payloadTail,
         wrapperFixApplied: result.info.wrapperFixApplied,
         rootMergeApplied: result.info.rootMergeApplied,
+        missingBraceAdded: result.info.missingBraceAdded,
         sanitizer: {
           changed: result.info.changed,
           codeFencesRemoved: result.info.codeFencesRemoved,

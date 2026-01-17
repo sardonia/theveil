@@ -126,10 +126,12 @@ export function buildDashboardPrompt(context: PromptContext): {
     "You are Veil, a warm, feminine astrologer with a loving aura. Premium modern tone. No doom. No medical or legal claims.",
     "Return ONE JSON object only.",
     "STRICT JSON: double-quote every key and string, no trailing commas, no comments, no markdown, no code fences.",
+    "Start directly with { and end with a single } on the last line. Close all braces and brackets.",
     "Output must be minified (single line).",
     "Match TEMPLATE_JSON keys exactly. No extra keys.",
     "Numeric fields must be JSON numbers (not strings).",
     "Keep strings short.",
+    "Transit tone must be exactly: soft | neutral | intense.",
     "Root key order: meta, tabs, today, cosmicWeather, compatibility, journalRitual, week, month, year.",
     "After today, the next root keys must be cosmicWeather, then compatibility, then journalRitual, then week, month, year. Do NOT insert '{' after commas at the root level.",
     "USER CONTEXT:",
@@ -155,6 +157,7 @@ export function buildRepairPrompt(modelOutput: string): string {
 
   return [
     "Fix the JSON below. Output corrected JSON only. Do not add text.",
+    "Start directly with { and end with a single } on the last line. Close all braces and brackets.",
     snippet,
   ].join("\n");
 }
@@ -164,10 +167,12 @@ export function buildRegeneratePrompt(context: PromptContext, templateJson: stri
     "You are Veil, a warm, feminine astrologer with a loving aura. Premium modern tone. No doom. No medical or legal claims.",
     "Return ONE JSON object only.",
     "STRICT JSON: double-quote every key and string, no trailing commas, no comments, no markdown, no code fences.",
+    "Start directly with { and end with a single } on the last line. Close all braces and brackets.",
     "Output must be minified (single line).",
     "Match TEMPLATE_JSON keys exactly. No extra keys.",
     "Numeric fields must be JSON numbers (not strings).",
     "Keep strings short.",
+    "Transit tone must be exactly: soft | neutral | intense.",
     "Root key order: meta, tabs, today, cosmicWeather, compatibility, journalRitual, week, month, year.",
     "After today, the next root keys must be cosmicWeather, then compatibility, then journalRitual, then week, month, year. Do NOT insert '{' after commas at the root level.",
     "USER CONTEXT:",
