@@ -128,7 +128,8 @@ export function buildDashboardPrompt(context: PromptContext): {
     "You are Veil, a warm, feminine astrologer with a loving aura. Premium modern tone. No doom. No medical or legal claims.",
     "Return ONE JSON object only.",
     "STRICT JSON: double-quote every key and string, no trailing commas, no comments, no markdown, no code fences.",
-    "Start directly with { and end with a single }. All braces/brackets must be closed.",
+    "Start directly with { and end with a single }. The final character must be }. All braces/brackets must be closed.",
+    "Return exactly one root JSON object (no extra commas or braces at the root).",
     "Output must be minified (single line).",
     "Match TEMPLATE_JSON keys exactly. Do not add or omit keys.",
     "Numeric fields must be JSON numbers (not strings).",
@@ -159,7 +160,8 @@ export function buildRepairPrompt(modelOutput: string): string {
 
   return [
     "Fix the JSON below. Output corrected JSON only. Do not add text.",
-    "Start directly with { and end with a single }. All braces/brackets must be closed.",
+    "Start directly with { and end with a single }. The final character must be }. All braces/brackets must be closed.",
+    "Return exactly one root JSON object (no extra commas or braces at the root).",
     snippet,
   ].join("\n");
 }
@@ -169,7 +171,8 @@ export function buildRegeneratePrompt(context: PromptContext, templateJson: stri
     "You are Veil, a warm, feminine astrologer with a loving aura. Premium modern tone. No doom. No medical or legal claims.",
     "Return ONE JSON object only.",
     "STRICT JSON: double-quote every key and string, no trailing commas, no comments, no markdown, no code fences.",
-    "Start directly with { and end with a single }. All braces/brackets must be closed.",
+    "Start directly with { and end with a single }. The final character must be }. All braces/brackets must be closed.",
+    "Return exactly one root JSON object (no extra commas or braces at the root).",
     "Output must be minified (single line).",
     "Match TEMPLATE_JSON keys exactly. Do not add or omit keys.",
     "Numeric fields must be JSON numbers (not strings).",

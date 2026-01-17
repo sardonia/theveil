@@ -396,7 +396,7 @@ function closeMissingFinalBrace(text: string): { text: string; added: boolean } 
     if (ch === "{") depth += 1;
     if (ch === "}") depth -= 1;
   }
-  if (inString || depth !== 1 || lastNonWhitespace === "}") {
+  if (inString || depth <= 0) {
     return { text, added: false };
   }
   return { text: `${text}}`, added: true };
