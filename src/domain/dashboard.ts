@@ -373,8 +373,12 @@ function closeMissingFinalBrace(text: string): { text: string; added: boolean } 
   let inString = false;
   let escaped = false;
   let depth = 0;
+  let lastNonWhitespace = "";
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
+    if (!/\s/.test(ch)) {
+      lastNonWhitespace = ch;
+    }
     if (inString) {
       if (escaped) {
         escaped = false;
