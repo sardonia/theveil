@@ -2,7 +2,7 @@ import type { AppState, DashboardPayload, ProfileDraft, SamplingParams } from ".
 import { HoroscopeRepository } from "../repository/horoscopeRepository";
 import { debugModelLog } from "../debug/logger";
 import { zodiacSign } from "../domain/zodiac";
-import { buildDashboardPrompt, buildRegeneratePrompt, buildRepairPrompt } from "./dashboardPrompt";
+import { buildDashboardPrompt } from "./dashboardPrompt";
 import { sanitizeAndParseDashboardPayload } from "../domain/dashboard";
 import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
 import { StubAdapter } from "../adapters/stubAdapter";
@@ -73,141 +73,50 @@ export class InvokeModelStep implements PipelineStep {
 }
 
 export class ValidatePayloadStep implements PipelineStep {
-  private repository: HoroscopeRepository;
   private stub: StubAdapter;
 
-  constructor(repository: HoroscopeRepository) {
-    this.repository = repository;
+  constructor() {
     this.stub = new StubAdapter();
   }
 
   async run(context: PipelineContext, state: AppState) {
     if (!context.payloadJson) return;
 
-    const buildPromptContext = () => ({
-      name: context.profile.name,
-      birthdate: context.profile.birthdate,
-      sign: zodiacSign(context.profile.birthdate),
-      localeDateLabel: context.localeDateLabel,
-      dateISO: context.dateISO,
-      seed: context.sampling?.seed,
-      mood: context.profile.mood,
-      personality: context.profile.personality,
-      generatedAtISO: new Date().toISOString(),
-    });
-
-    const bumpSampling = (
-      sampling: SamplingParams | undefined,
-      attempt: number,
-      reason: "truncation" | "other"
-    ): SamplingParams => {
-      const base = sampling ?? DEFAULT_SAMPLING_PARAMS;
-      const seed = base.seed == null ? null : ((base.seed + attempt * 1337) >>> 0);
-
-      // Don't blow up maxTokens for every retry — that makes retries slower and
-      // doesn't help for syntax issues. Only bump when we see truncation.
-      const maxTokens = reason === "truncation"
-        ? Math.min(Math.round(base.maxTokens * 1.5) + 200, 3600)
-        : base.maxTokens;
-
-      // Slightly reduce temperature on retries to keep JSON structured.
-      const temperature = attempt === 0 ? base.temperature : Math.min(base.temperature, 0.35);
-
-      return { ...base, seed, maxTokens, temperature };
-    };
-
-    const isTruncationError = (message: string) => {
-      const m = message.toLowerCase();
-      return (
-        m.includes("unexpected eof") ||
-        m.includes("unexpected end") ||
-        m.includes("end of json") ||
-        m.includes("unterminated")
-      );
-    };
-
-    const isSyntaxLikeError = (message: string) => {
-      const m = message.toLowerCase();
-      return (
-        m.includes("property name") ||
-        m.includes("string literal") ||
-        m.includes("invalid") ||
-        m.includes("unexpected token")
-      );
-    };
-
     const tryParse = (payloadJson: string) => sanitizeAndParseDashboardPayload(payloadJson);
 
-    // Try initial output + ONE retry. Keeping the cap low prevents worst-case
-    // 60–90 second waits when a model has occasional JSON drift.
-    let currentJson = context.payloadJson;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const result = tryParse(currentJson);
-      if (result.ok) {
-        context.payload = result.value;
-        debugModelLog(
-          "log",
-          attempt === 0 ? "pipeline:payload:validated" : "pipeline:payload:repair:validated",
-          {
-            meta: result.value.meta,
-            sections: result.value.today.sections.length,
-            attempt,
-          }
-        );
-        return;
-      }
-
-      const payloadHead = currentJson.slice(0, 200);
-      const payloadTail = currentJson.length > 200 ? currentJson.slice(-200) : "";
-      debugModelLog("warn", "pipeline:payload:invalid", {
-        error: result.error.message,
-        attempt,
-        payloadLength: currentJson.length,
-        payloadHead,
-        payloadTail,
-        wrapperFixApplied: result.info.wrapperFixApplied,
-        rootMergeApplied: result.info.rootMergeApplied,
-        sanitizer: {
-          changed: result.info.changed,
-          codeFencesRemoved: result.info.codeFencesRemoved,
-          extractedJson: result.info.extractedJson,
-          trailingCommasRemoved: result.info.trailingCommasRemoved,
-          unquotedKeysFixed: result.info.unquotedKeysFixed,
-        },
+    const result = tryParse(context.payloadJson);
+    if (result.ok) {
+      context.payload = result.value;
+      debugModelLog("log", "pipeline:payload:validated", {
+        meta: result.value.meta,
+        sections: result.value.today.sections.length,
       });
-
-      if (!context.templateJson) break;
-
-      const isTruncation = isTruncationError(result.error.message);
-      const isSyntax = isSyntaxLikeError(result.error.message);
-
-      const promptContext = buildPromptContext();
-      const mode: "regenerate" | "repair" = isTruncation ? "regenerate" : isSyntax ? "repair" : "regenerate";
-      const nextSampling = bumpSampling(context.sampling, attempt + 1, isTruncation ? "truncation" : "other");
-      const nextPrompt = mode === "regenerate"
-        ? buildRegeneratePrompt(promptContext, context.templateJson)
-        : buildRepairPrompt(currentJson);
-
-      debugModelLog("log", "pipeline:payload:repair:start", {
-        attempt: attempt + 1,
-        mode,
-        maxTokens: nextSampling.maxTokens,
-        temperature: nextSampling.temperature,
-        seed: nextSampling.seed,
-      });
-
-      currentJson = await this.repository.generate(
-        context.profile,
-        context.dateISO,
-        nextPrompt,
-        state.model.status,
-        nextSampling
-      );
+      return;
     }
 
-    // If the model keeps producing invalid JSON, fall back to the stub.
+    const payloadHead = context.payloadJson.slice(0, 200);
+    const payloadTail = context.payloadJson.length > 200 ? context.payloadJson.slice(-200) : "";
+    debugModelLog("warn", "pipeline:payload:invalid", {
+      error: result.error.message,
+      payloadLength: context.payloadJson.length,
+      payloadHead,
+      payloadTail,
+      payloadJson: context.payloadJson,
+      location: describeJsonErrorLocation(context.payloadJson, result.error.message),
+      wrapperFixApplied: result.info.wrapperFixApplied,
+      rootMergeApplied: result.info.rootMergeApplied,
+      sanitizer: {
+        changed: result.info.changed,
+        codeFencesRemoved: result.info.codeFencesRemoved,
+        extractedJson: result.info.extractedJson,
+        trailingCommasRemoved: result.info.trailingCommasRemoved,
+        unquotedKeysFixed: result.info.unquotedKeysFixed,
+      },
+    });
+
+    // If the model produces invalid JSON, fall back to the stub.
     debugModelLog("error", "pipeline:payload:fallback:stub", {
-      reason: "Model produced invalid JSON after retries",
+      reason: "Model produced invalid JSON on first attempt",
     });
     const stubJson = await this.stub.generate(context.profile, context.dateISO, context.sampling);
     const stubResult = tryParse(stubJson);
@@ -244,6 +153,35 @@ function previewText(
   };
 }
 
+function describeJsonErrorLocation(
+  json: string,
+  message: string
+): { position: number | null; line: number | null; column: number | null; snippet: string | null } {
+  const match = message.match(/position (\d+)/i);
+  if (!match) {
+    return { position: null, line: null, column: null, snippet: null };
+  }
+  const position = Number(match[1]);
+  if (!Number.isFinite(position) || position < 0) {
+    return { position: null, line: null, column: null, snippet: null };
+  }
+  const safePosition = Math.min(position, json.length);
+  let line = 1;
+  let column = 1;
+  for (let i = 0; i < safePosition; i += 1) {
+    if (json[i] === "\n") {
+      line += 1;
+      column = 1;
+    } else {
+      column += 1;
+    }
+  }
+  const start = Math.max(0, safePosition - 120);
+  const end = Math.min(json.length, safePosition + 120);
+  const snippet = json.slice(start, end);
+  return { position: safePosition, line, column, snippet };
+}
+
 function buildSamplingParams(
   profile: ProfileDraft,
   dateISO: string,
@@ -271,7 +209,7 @@ export async function runReadingPipeline(
   const steps: PipelineStep[] = [
     new BuildPromptStep(),
     new InvokeModelStep(repository),
-    new ValidatePayloadStep(repository),
+    new ValidatePayloadStep(),
   ];
   const [year, month, day] = dateISO.split("-").map((value) => Number(value));
   const safeLocalDate =
