@@ -5,6 +5,7 @@ import { EmbeddedModelAdapter } from "../adapters/modelAdapter";
 import { StubAdapter } from "../adapters/stubAdapter";
 import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
 import { debugModelLog } from "../debug/logger";
+import { store } from "../app/runtime";
 
 const STREAM_CHUNK_SIZE = 28;
 const STREAM_CHUNK_DELAY_MS = 40;
@@ -33,7 +34,27 @@ export class HoroscopeRepository {
       date,
       hasPrompt: Boolean(prompt),
     });
-    if (status.status === "loaded") {
+    let effectiveStatus = status;
+    if (status.status === "loading" || status.status === "unloaded") {
+      if (!isTauriRuntime()) {
+        debugModelLog("warn", "repository:generate:using:stub", {
+          reason: status.status,
+        });
+        const payload = await this.emitStubStream(profile, date, sampling);
+        debugModelLog("log", "repository:generate:complete", {
+          source: "stub",
+          durationMs: Math.round(performance.now() - startedAt),
+          payloadLength: payload.length,
+        });
+        return payload;
+      }
+      debugModelLog("log", "repository:generate:wait:model", {
+        status,
+      });
+      effectiveStatus = await waitForModelReady();
+    }
+
+    if (effectiveStatus.status === "loaded") {
       try {
         debugModelLog("log", "repository:generate:using:model");
         const payload = await this.embeddedAdapter.generate(
@@ -52,7 +73,7 @@ export class HoroscopeRepository {
         debugModelLog("warn", "repository:generate:model:error", {
           message: "Model adapter failed. Falling back to stub.",
         });
-        const payload = await this.stubAdapter.generate(profile, date);
+        const payload = await this.stubAdapter.generate(profile, date, sampling);
         debugModelLog("log", "repository:generate:complete", {
           source: "stub-fallback",
           durationMs: Math.round(performance.now() - startedAt),
@@ -62,9 +83,9 @@ export class HoroscopeRepository {
       }
     }
     debugModelLog("warn", "repository:generate:using:stub", {
-      reason: status.status,
+      reason: effectiveStatus.status,
     });
-    const payload = await this.emitStubStream(profile, date);
+    const payload = await this.emitStubStream(profile, date, sampling);
     debugModelLog("log", "repository:generate:complete", {
       source: "stub",
       durationMs: Math.round(performance.now() - startedAt),
@@ -73,10 +94,14 @@ export class HoroscopeRepository {
     return payload;
   }
 
-  private async emitStubStream(profile: ProfileDraft, date: string) {
+  private async emitStubStream(
+    profile: ProfileDraft,
+    date: string,
+    sampling: SamplingParams
+  ) {
     debugModelLog("log", "repository:stream:stub:start");
     await emitStreamEvent({ kind: "start" });
-    const reading = await this.stubAdapter.generate(profile, date);
+    const reading = await this.stubAdapter.generate(profile, date, sampling);
     await streamMessage(reading);
     await emitStreamEvent({ kind: "end" });
     debugModelLog("log", "repository:stream:stub:end", {
@@ -84,6 +109,25 @@ export class HoroscopeRepository {
     });
     return reading;
   }
+}
+
+function waitForModelReady(): Promise<ModelStatus> {
+  return new Promise((resolve) => {
+    const current = store.getState().model.status;
+    if (current.status === "loaded" || current.status === "error") {
+      resolve(current);
+      return;
+    }
+    const unsubscribe = store.subscribe(
+      (state) => state.model.status,
+      (next) => {
+        if (next.status === "loaded" || next.status === "error") {
+          unsubscribe();
+          resolve(next);
+        }
+      }
+    );
+  });
 }
 
 async function emitStreamEvent(event: StreamEvent) {
