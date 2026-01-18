@@ -10,7 +10,6 @@ import { renderRoute } from "../ui/rendering/route";
 import { renderModelStatus } from "../ui/rendering/modelStatus";
 import { renderDashboard } from "../ui/rendering/dashboard";
 import { renderBusy } from "../ui/rendering/busy";
-import { renderErrorToast } from "../ui/rendering/errorToast";
 import { showToast } from "../ui/feedback/toast";
 import { store } from "./runtime";
 import { initModel } from "../features/model/initModel";
@@ -27,7 +26,6 @@ function renderInitial(state: AppState) {
   renderModelStatus(state.model.status);
   renderDashboard(state.reading.current, state.profile.saved, state.reading.error);
   renderBusy(state.ui.busyFlags.generating);
-  renderErrorToast(state.reading.error);
 }
 
 function bindSubscriptions() {
@@ -56,10 +54,6 @@ function bindSubscriptions() {
   store.subscribe(
     (state) => state.ui.busyFlags.generating,
     (value) => renderBusy(value)
-  );
-  store.subscribe(
-    (state) => state.reading.error,
-    (value) => renderErrorToast(value)
   );
   store.subscribe(
     (state) => state.ui.toasts,

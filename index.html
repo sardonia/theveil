@@ -121,18 +121,6 @@
               aria-hidden="true"
             >
               <div class="dashboard" id="dashboard-body">
-                <div class="dashboard__tabs" role="tablist" aria-label="Dashboard tabs">
-                  <button class="dashboard__tab is-active" data-target="today" type="button">
-                    Today
-                  </button>
-                  <button class="dashboard__tab" data-target="week" type="button">Week</button>
-                  <button class="dashboard__tab" data-target="month" type="button">Month</button>
-                  <button class="dashboard__tab" data-target="year" type="button">Year</button>
-                  <button class="dashboard__tab" data-target="moon" type="button">Moon</button>
-                  <button class="dashboard__tab" data-target="chart" type="button">Chart</button>
-                  <button class="dashboard__tab" data-target="journal" type="button">Journal</button>
-                </div>
-
                 <section class="glass-card dashboard-card dashboard-card--primary" id="dashboard-primary">
                   <div class="glass-card__glow"></div>
                   <div class="dashboard-card__top">
@@ -204,113 +192,27 @@
 
                 <div class="dashboard__loading" id="dashboard-loading" hidden>
                   <div class="spinner"></div>
-                  <p id="dashboard-loading-text">Weaving your message…</p>
-                  <p id="dashboard-loading-hint" class="dashboard__loading__hint" hidden></p>
+                  <p>Weaving your message…</p>
                 </div>
 
-                <div class="dashboard-grid">
-                  <section class="glass-card dashboard-card" id="cosmic-weather">
-                    <header class="dashboard-card__header">
-                      <h3>Cosmic Weather</h3>
-                    </header>
-                    <p class="card-subtitle" id="cosmic-moon"></p>
-                    <div class="pill-list" id="cosmic-transits"></div>
-                    <p class="card-body" id="cosmic-affects"></p>
-                  </section>
-
-                  <section class="glass-card dashboard-card" id="compatibility-card">
-                    <header class="dashboard-card__header">
-                      <h3>Compatibility</h3>
-                      <button class="text-button" id="open-archive" type="button">Archive</button>
-                    </header>
-                    <p><strong>Best flow:</strong> <span id="compatibility-best"></span></p>
-                    <p><strong>Handle gently:</strong> <span id="compatibility-handle"></span></p>
-                    <div class="tip-list">
-                      <div>
-                        <span>Conflict</span>
-                        <p id="compatibility-conflict"></p>
-                      </div>
-                      <div>
-                        <span>Affection</span>
-                        <p id="compatibility-affection"></p>
-                      </div>
+                <section class="glass-card dashboard-card dashboard-card--compatibility" id="compatibility-card">
+                  <header class="dashboard-card__header">
+                    <h3>Compatibility</h3>
+                    <button class="text-button" id="open-archive" type="button">Archive</button>
+                  </header>
+                  <p><strong>Best flow:</strong> <span id="compatibility-best"></span></p>
+                  <p><strong>Handle gently:</strong> <span id="compatibility-handle"></span></p>
+                  <div class="tip-list">
+                    <div>
+                      <span>Conflict</span>
+                      <p id="compatibility-conflict"></p>
                     </div>
-                  </section>
-
-                  <section class="glass-card dashboard-card" id="journal-ritual">
-                    <header class="dashboard-card__header">
-                      <h3>Journal &amp; Ritual</h3>
-                    </header>
-                    <p class="card-body" id="journal-prompt"></p>
-                    <div class="chip-row" id="journal-starters"></div>
-                    <div class="card-split">
-                      <div>
-                        <span>Mantra</span>
-                        <p id="journal-mantra"></p>
-                      </div>
-                      <div>
-                        <span>Tiny ritual</span>
-                        <p id="journal-ritual"></p>
-                      </div>
+                    <div>
+                      <span>Affection</span>
+                      <p id="compatibility-affection"></p>
                     </div>
-                    <div class="card-highlight">
-                      <strong id="journal-best-day"></strong>
-                      <span id="journal-best-reason"></span>
-                    </div>
-                  </section>
-
-                  <section class="glass-card dashboard-card" id="weekly-overview">
-                    <header class="dashboard-card__header">
-                      <h3>Weekly Overview</h3>
-                    </header>
-                    <div class="card-body" id="weekly-arc"></div>
-                    <div class="card-split">
-                      <div>
-                        <span>Opportunity</span>
-                        <p id="weekly-opportunity"></p>
-                      </div>
-                      <div>
-                        <span>Caution</span>
-                        <p id="weekly-caution"></p>
-                      </div>
-                    </div>
-                    <div class="card-split">
-                      <div>
-                        <span>Decisions</span>
-                        <p id="weekly-best-decisions"></p>
-                      </div>
-                      <div>
-                        <span>Conversations</span>
-                        <p id="weekly-best-conversations"></p>
-                      </div>
-                      <div>
-                        <span>Rest</span>
-                        <p id="weekly-best-rest"></p>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section class="glass-card dashboard-card" id="monthly-highlights">
-                    <header class="dashboard-card__header">
-                      <h3>Monthly Highlights</h3>
-                    </header>
-                    <p class="card-body"><strong id="monthly-theme"></strong></p>
-                    <ul class="date-list" id="monthly-dates"></ul>
-                    <p class="card-body" id="monthly-newmoon"></p>
-                    <p class="card-body" id="monthly-fullmoon"></p>
-                    <p class="card-body emphasis" id="monthly-onething"></p>
-                  </section>
-
-                  <section class="glass-card dashboard-card" id="year-overview">
-                    <header class="dashboard-card__header">
-                      <h3>Yearly Outlook</h3>
-                    </header>
-                    <p class="card-body" id="year-headline"></p>
-                    <ul class="date-list" id="year-quarters"></ul>
-                    <p class="card-body"><strong>Power months:</strong> <span id="year-power"></span></p>
-                    <p class="card-body"><strong>Challenge:</strong> <span id="year-challenge"></span></p>
-                  </section>
-                </div>
+                  </div>
+                </section>
               </div>
 
               <div class="archive-modal" id="archive-modal" aria-hidden="true">

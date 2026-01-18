@@ -7,7 +7,6 @@ interface PromptContext {
   mood: string;
   personality: string;
   generatedAtISO: string;
-  seed?: number;
 }
 
 function buildDashboardTemplate(context: PromptContext): string {
@@ -19,27 +18,24 @@ function buildDashboardTemplate(context: PromptContext): string {
       sign: context.sign,
       name: context.name,
     },
-    tabs: {
-      activeDefault: "today",
-    },
     today: {
       headline: "__FILL__",
       subhead: "__FILL__",
       theme: "__FILL__",
-      energyScore: -1,
+      energyScore: "__FILL_INT_0_100__",
       bestHours: [
-        { label: "__FILL__", start: "__FILL__", end: "__FILL__" },
-        { label: "__FILL__", start: "__FILL__", end: "__FILL__" },
+        { label: "__FILL__", start: "__FILL_HHMM__", end: "__FILL_HHMM__" },
+        { label: "__FILL__", start: "__FILL_HHMM__", end: "__FILL_HHMM__" },
       ],
       ratings: {
-        love: -1,
-        work: -1,
-        money: -1,
-        health: -1,
+        love: "__FILL_INT_0_5__",
+        work: "__FILL_INT_0_5__",
+        money: "__FILL_INT_0_5__",
+        health: "__FILL_INT_0_5__",
       },
       lucky: {
         color: "__FILL__",
-        number: -1,
+        number: "__FILL_INT__",
         symbol: "__FILL__",
       },
       doDont: {
@@ -53,14 +49,6 @@ function buildDashboardTemplate(context: PromptContext): string {
         { title: "Reflection", body: "__FILL__" },
       ],
     },
-    cosmicWeather: {
-      moon: { phase: "__FILL__", sign: "__FILL__" },
-      transits: [
-        { title: "__FILL__", tone: "__FILL__", meaning: "__FILL__" },
-        { title: "__FILL__", tone: "__FILL__", meaning: "__FILL__" },
-      ],
-      affectsToday: "__FILL__",
-    },
     compatibility: {
       bestFlowWith: ["__FILL__", "__FILL__"],
       handleGentlyWith: ["__FILL__"],
@@ -69,53 +57,9 @@ function buildDashboardTemplate(context: PromptContext): string {
         affection: "__FILL__",
       },
     },
-    journalRitual: {
-      prompt: "__FILL__",
-      starters: ["__FILL__", "__FILL__", "__FILL__"],
-      mantra: "__FILL__",
-      ritual: "__FILL__",
-      bestDayForDecisions: { dayLabel: "__FILL__", reason: "__FILL__" },
-    },
-    week: {
-      arc: {
-        start: "__FILL__",
-        midweek: "__FILL__",
-        weekend: "__FILL__",
-      },
-      keyOpportunity: "__FILL__",
-      keyCaution: "__FILL__",
-      bestDayFor: {
-        decisions: "__FILL__",
-        conversations: "__FILL__",
-        rest: "__FILL__",
-      },
-    },
-    month: {
-      theme: "__FILL__",
-      keyDates: [
-        { dateLabel: "__FILL__", title: "__FILL__", note: "__FILL__" },
-        { dateLabel: "__FILL__", title: "__FILL__", note: "__FILL__" },
-        { dateLabel: "__FILL__", title: "__FILL__", note: "__FILL__" },
-      ],
-      newMoon: { dateLabel: "__FILL__", intention: "__FILL__" },
-      fullMoon: { dateLabel: "__FILL__", release: "__FILL__" },
-      oneThing: "__FILL__",
-    },
-    year: {
-      headline: "__FILL__",
-      quarters: [
-        { label: "Q1", focus: "__FILL__" },
-        { label: "Q2", focus: "__FILL__" },
-        { label: "Q3", focus: "__FILL__" },
-        { label: "Q4", focus: "__FILL__" },
-      ],
-      powerMonths: ["__FILL__", "__FILL__"],
-      challengeMonth: { month: "__FILL__", guidance: "__FILL__" },
-    },
   };
 
-  // Keep the template compact to reduce prompt tokens and to encourage the model
-  // to emit compact JSON (helps avoid truncation).
+  // Keep the template compact to reduce prompt size.
   return JSON.stringify(template);
 }
 
@@ -125,18 +69,17 @@ export function buildDashboardPrompt(context: PromptContext): {
 } {
   const templateJson = buildDashboardTemplate(context);
   const prompt = [
-    "You are Veil, a warm, feminine astrologer with a loving aura. Premium modern tone. No doom. No medical or legal claims.",
-    "Return ONE JSON object only.",
-    "STRICT JSON: double-quote every key and string, no trailing commas, no comments, no markdown, no code fences.",
-    "Start directly with { and end with a single }. The final character must be }. All braces/brackets must be closed.",
-    "Return exactly one root JSON object (no extra commas or braces at the root).",
-    "Output must be minified (single line).",
-    "Match TEMPLATE_JSON keys exactly. Do not add or omit keys.",
-    "Numeric fields must be JSON numbers (not strings).",
-    "Keep strings short.",
-    "Transit tone must be exactly: soft | neutral | intense.",
-    "Root key order: meta, tabs, today, cosmicWeather, compatibility, journalRitual, week, month, year.",
-    "After today, the next root keys must be cosmicWeather, then compatibility, then journalRitual, then week, month, year. Do NOT insert '{' after commas at the root level.",
+    "ROLE:",
+    "You are Veil: a warm, feminine astrologer with a loving aura. You write premium, modern astrology — gentle, confident, and creative — without doom or medical/legal claims.",
+    "",
+    "OUTPUT CONTRACT (MUST FOLLOW):",
+    "- Return ONE JSON object only. No markdown. No commentary.",
+    "- Strict JSON: double-quote every property name and every string. No trailing commas.",
+    "- Use JSON numbers (not strings) for numeric fields.",
+    "- Do NOT add or remove keys. Match TEMPLATE_JSON keys exactly.",
+    "- Keep each text value short (typically 6–18 words).",
+    "- Avoid newline characters inside strings.",
+    "",
     "USER CONTEXT:",
     `name=${context.name}`,
     `birthdate=${context.birthdate}`,
@@ -145,51 +88,54 @@ export function buildDashboardPrompt(context: PromptContext): {
     `localeDateLabel=${context.localeDateLabel}`,
     `mood=${context.mood}`,
     `personality=${context.personality}`,
-    `seed=${context.seed ?? ""}`,
+    "",
+    "STRUCTURE RULES:",
+    "- today.bestHours: exactly 2 items; time format is HH:MM (24h).",
+    "- today.sections: exactly 4 items with titles Focus, Relationships, Action, Reflection (in that order).",
+    "- compatibility.bestFlowWith: exactly 2 signs.",
+    "- compatibility.handleGentlyWith: exactly 1 sign.",
+    "- today.energyScore: integer 0–100.",
+    "- today.ratings.*: integers 0–5.",
+    "",
     "TEMPLATE_JSON:",
     templateJson,
+    "",
+    "Now output the completed JSON only.",
   ].join("\n");
 
   return { prompt, templateJson };
 }
 
-export function buildRepairPrompt(modelOutput: string): string {
-  const head = modelOutput.slice(0, 2000);
-  const tail = modelOutput.length > 2400 ? modelOutput.slice(-400) : "";
-  const snippet = tail ? `${head}\n...\n${tail}` : head;
-
+export function buildRepairPrompt(
+  context: PromptContext,
+  templateJson: string,
+  modelOutput: string
+): string {
   return [
-    "Fix the JSON below. Output corrected JSON only. Do not add text.",
-    "Start directly with { and end with a single }. The final character must be }. All braces/brackets must be closed.",
-    "Return exactly one root JSON object (no extra commas or braces at the root).",
-    snippet,
-  ].join("\n");
-}
-
-export function buildRegeneratePrompt(context: PromptContext, templateJson: string): string {
-  return [
-    "You are Veil, a warm, feminine astrologer with a loving aura. Premium modern tone. No doom. No medical or legal claims.",
-    "Return ONE JSON object only.",
-    "STRICT JSON: double-quote every key and string, no trailing commas, no comments, no markdown, no code fences.",
-    "Start directly with { and end with a single }. The final character must be }. All braces/brackets must be closed.",
-    "Return exactly one root JSON object (no extra commas or braces at the root).",
-    "Output must be minified (single line).",
-    "Match TEMPLATE_JSON keys exactly. Do not add or omit keys.",
-    "Numeric fields must be JSON numbers (not strings).",
-    "Keep strings short.",
-    "Transit tone must be exactly: soft | neutral | intense.",
-    "Root key order: meta, tabs, today, cosmicWeather, compatibility, journalRitual, week, month, year.",
-    "After today, the next root keys must be cosmicWeather, then compatibility, then journalRitual, then week, month, year. Do NOT insert '{' after commas at the root level.",
+    "ROLE:",
+    "You are Veil: a careful JSON formatter.",
+    "",
+    "TASK:",
+    "- Return valid JSON only.",
+    "- Conform exactly to TEMPLATE_JSON keys and types.",
+    "- Do not invent new keys.",
+    "- If a field is missing, fill it with a short, soothing value consistent with the user context.",
+    "- Use JSON numbers for numeric fields.",
+    "",
     "USER CONTEXT:",
     `name=${context.name}`,
     `birthdate=${context.birthdate}`,
     `sunSign=${context.sign}`,
     `dateISO=${context.dateISO}`,
-    `localeDateLabel=${context.localeDateLabel}`,
     `mood=${context.mood}`,
     `personality=${context.personality}`,
-    `seed=${context.seed ?? ""}`,
+    "",
     "TEMPLATE_JSON:",
     templateJson,
+    "",
+    "MODEL_OUTPUT:",
+    modelOutput,
+    "",
+    "Output the fixed JSON only.",
   ].join("\n");
 }

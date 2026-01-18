@@ -41,9 +41,6 @@ export interface DashboardPayload {
     sign: string;
     name: string;
   };
-  tabs: {
-    activeDefault: "today";
-  };
   today: {
     headline: string;
     subhead: string;
@@ -70,77 +67,12 @@ export interface DashboardPayload {
       body: string;
     }>;
   };
-  cosmicWeather: {
-    moon: {
-      phase: string;
-      sign: string;
-    };
-    transits: Array<{
-      title: string;
-      tone: "soft" | "neutral" | "intense";
-      meaning: string;
-    }>;
-    affectsToday: string;
-  };
   compatibility: {
     bestFlowWith: string[];
     handleGentlyWith: string[];
     tips: {
       conflict: string;
       affection: string;
-    };
-  };
-  journalRitual: {
-    prompt: string;
-    starters: string[];
-    mantra: string;
-    ritual: string;
-    bestDayForDecisions: {
-      dayLabel: string;
-      reason: string;
-    };
-  };
-  week: {
-    arc: {
-      start: string;
-      midweek: string;
-      weekend: string;
-    };
-    keyOpportunity: string;
-    keyCaution: string;
-    bestDayFor: {
-      decisions: string;
-      conversations: string;
-      rest: string;
-    };
-  };
-  month: {
-    theme: string;
-    keyDates: Array<{
-      dateLabel: string;
-      title: string;
-      note: string;
-    }>;
-    newMoon: {
-      dateLabel: string;
-      intention: string;
-    };
-    fullMoon: {
-      dateLabel: string;
-      release: string;
-    };
-    oneThing: string;
-  };
-  year: {
-    headline: string;
-    quarters: Array<{
-      label: "Q1" | "Q2" | "Q3" | "Q4";
-      focus: string;
-    }>;
-    powerMonths: string[];
-    challengeMonth: {
-      month: string;
-      guidance: string;
     };
   };
 }

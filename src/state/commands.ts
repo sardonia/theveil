@@ -5,13 +5,6 @@ import type { DomainEvent } from "./events";
 import { AsyncQueue } from "./queue";
 import { debugLog, debugModelLog, isDebugEnabled } from "../debug/logger";
 
-function localDateISO(date = new Date()): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 export type Command =
   | { type: "SubmitProfile"; profile: ProfileDraft }
   | { type: "GenerateReading" }
@@ -115,23 +108,13 @@ export class CommandBus {
         { type: "ReadingGenerationStarted" },
         { type: "RouteChanged", route: "reading" },
       ]);
-
-      // Give the UI a chance to paint the route change + loading spinner before
-      // we start the (potentially long) model call.
-      await new Promise<void>((resolve) => {
-        if (typeof requestAnimationFrame === "function") {
-          requestAnimationFrame(() => resolve());
-        } else {
-          setTimeout(resolve, 0);
-        }
-      });
       debugLog("log", "command:GenerateReading:routeChanged", {
         route: this.context.getState().ui.route,
       });
       try {
         const reading = await runReadingPipeline(
           state.profile.saved as ProfileDraft,
-          localDateISO(),
+          new Date().toISOString().slice(0, 10),
           this.context.getState()
         );
         const durationMs = Math.round(performance.now() - startedAt);
