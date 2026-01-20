@@ -458,50 +458,55 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
 
     let state_clone = state.inner().clone();
     let app_clone = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let mut progress = 0.1_f32;
-        let mut interval = tokio::time::interval(Duration::from_millis(180));
-        let app_for_load = app_clone.clone();
-        let load_handle = tauri::async_runtime::spawn(async move {
-            let model_path = resolve_model_path(&app_for_load)?;
-            EmbeddedBackend::load(model_path).await
-        });
-        loop {
-            interval.tick().await;
-            if load_handle.is_finished() {
-                break;
-            }
-            progress = (progress + 0.15).min(0.9);
-            state_clone.set_status(ModelStatus::Loading { progress });
-            emit_status(&app_clone, state_clone.get_status());
-        }
-
-        match load_handle.await {
-            Ok(Ok(backend)) => {
-                let model_size_bytes = backend.model_size_bytes;
-                let model_size_mb = (model_size_bytes as f32) / (1024.0 * 1024.0);
-                let model_path = backend.model_path.display().to_string();
-                state_clone.set_backend(Arc::new(backend));
-                state_clone.set_status(ModelStatus::Loaded {
-                    model_path,
-                    model_size_mb,
-                    model_size_bytes,
-                });
-                emit_status(&app_clone, state_clone.get_status());
-            }
-            Ok(Err(message)) => {
-                state_clone.set_status(ModelStatus::Error { message });
-                emit_status(&app_clone, state_clone.get_status());
-            }
-            Err(error) => {
-                let message = format!("Model load task failed: {}", error);
-                state_clone.set_status(ModelStatus::Error { message });
-                emit_status(&app_clone, state_clone.get_status());
-            }
-        }
-    }
+    tauri::async_runtime::spawn(run_model_load(state_clone, app_clone));
 
     Ok(state.get_status())
+}
+
+async fn run_model_load(state: ModelManager, app: AppHandle) {
+    let mut progress = 0.1_f32;
+    let mut interval = tokio::time::interval(Duration::from_millis(180));
+    let app_for_load = app.clone();
+    let load_handle = tauri::async_runtime::spawn_blocking(move || {
+        tauri::async_runtime::block_on(async {
+            let model_path = resolve_model_path(&app_for_load)?;
+            EmbeddedBackend::load(model_path).await
+        })
+    });
+
+    loop {
+        interval.tick().await;
+        if load_handle.is_finished() {
+            break;
+        }
+        progress = (progress + 0.15).min(0.9);
+        state.set_status(ModelStatus::Loading { progress });
+        emit_status(&app, state.get_status());
+    }
+
+    match load_handle.await {
+        Ok(Ok(backend)) => {
+            let model_size_bytes = backend.model_size_bytes;
+            let model_size_mb = (model_size_bytes as f32) / (1024.0 * 1024.0);
+            let model_path = backend.model_path.display().to_string();
+            state.set_backend(Arc::new(backend));
+            state.set_status(ModelStatus::Loaded {
+                model_path,
+                model_size_mb,
+                model_size_bytes,
+            });
+            emit_status(&app, state.get_status());
+        }
+        Ok(Err(message)) => {
+            state.set_status(ModelStatus::Error { message });
+            emit_status(&app, state.get_status());
+        }
+        Err(error) => {
+            let message = format!("Model load task failed: {}", error);
+            state.set_status(ModelStatus::Error { message });
+            emit_status(&app, state.get_status());
+        }
+    }
 }
 
 #[tauri::command]
