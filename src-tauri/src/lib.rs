@@ -477,9 +477,14 @@ async fn run_model_load(state: ModelManager, app: AppHandle) {
     let load_result = loop {
         tokio::select! {
             _ = interval.tick() => {
-                progress = (progress + 0.15).min(0.9);
-                state.set_status(ModelStatus::Loading { progress });
-                emit_status(&app, state.get_status());
+                if progress < 0.9 {
+                    let next_progress = (progress + 0.15).min(0.9);
+                    if (next_progress - progress).abs() > f32::EPSILON {
+                        progress = next_progress;
+                        state.set_status(ModelStatus::Loading { progress });
+                        emit_status(&app, state.get_status());
+                    }
+                }
             }
             result = &mut load_handle => {
                 break result;
