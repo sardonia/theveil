@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri::webview::PageLoadEvent;
 use chrono::Datelike;
@@ -91,8 +91,6 @@ pub struct Reading {
 
 #[async_trait]
 pub trait HoroscopeModelBackend: Send + Sync {
-    fn backend_name(&self) -> &'static str;
-
     async fn generate_json(
         &self,
         request: &ReadingRequest,
@@ -125,10 +123,6 @@ pub struct StubBackend;
 
 #[async_trait]
 impl HoroscopeModelBackend for StubBackend {
-    fn backend_name(&self) -> &'static str {
-        "stub"
-    }
-
     async fn generate_json(
         &self,
         request: &ReadingRequest,
@@ -314,10 +308,6 @@ const VEIL_SYSTEM_PROMPT: &str = "You are Veil, a warm feminine astrologer with 
 
 #[async_trait]
 impl HoroscopeModelBackend for EmbeddedBackend {
-    fn backend_name(&self) -> &'static str {
-        "embedded"
-    }
-
     async fn generate_json(
         &self,
         request: &ReadingRequest,
@@ -373,59 +363,32 @@ impl ModelManager {
         }
     }
 
-    fn lock_status(&self) -> std::sync::MutexGuard<'_, ModelStatus> {
-        match self.status.lock() {
-            Ok(guard) => guard,
-            Err(poison) => {
-                eprintln!("[Veil] model:status:lock:poisoned recovering");
-                poison.into_inner()
-            }
-        }
-    }
-
-    fn lock_backend(&self) -> std::sync::MutexGuard<'_, Arc<dyn HoroscopeModelBackend>> {
-        match self.backend.lock() {
-            Ok(guard) => guard,
-            Err(poison) => {
-                eprintln!("[Veil] model:backend:lock:poisoned recovering");
-                poison.into_inner()
-            }
-        }
-    }
-
     fn get_status(&self) -> ModelStatus {
-        self.lock_status().clone()
+        self.status
+            .lock()
+            .map(|status| status.clone())
+            .unwrap_or(ModelStatus::Error {
+                message: "Unable to read model status".to_string(),
+            })
     }
 
     fn set_status(&self, status: ModelStatus) {
-        let mut guard = self.lock_status();
-        *guard = status;
+        if let Ok(mut guard) = self.status.lock() {
+            *guard = status;
+        }
     }
 
     fn set_backend(&self, backend: Arc<dyn HoroscopeModelBackend>) {
-        let backend_name = backend.backend_name();
-        let mut guard = self.lock_backend();
-        *guard = backend;
-        eprintln!("[Veil] model:backend:set backend={}", backend_name);
+        if let Ok(mut guard) = self.backend.lock() {
+            *guard = backend;
+        }
     }
 
     fn select_backend(&self) -> (Arc<dyn HoroscopeModelBackend>, ReadingSource) {
-        let status = self.get_status();
-        if matches!(status, ModelStatus::Loaded { .. }) {
-            let backend = self.lock_backend().clone();
-            let backend_name = backend.backend_name();
-
-            let source = if backend_name == "embedded" {
-                ReadingSource::Model
-            } else {
-                eprintln!(
-                    "[Veil] model:backend:unexpected backend={} while status=loaded; using stub",
-                    backend_name
-                );
-                ReadingSource::Stub
-            };
-
-            return (backend, source);
+        if matches!(self.get_status(), ModelStatus::Loaded { .. }) {
+            if let Ok(backend) = self.backend.lock() {
+                return (backend.clone(), ReadingSource::Model);
+            }
         }
         (Arc::new(StubBackend), ReadingSource::Stub)
     }
@@ -622,42 +585,12 @@ async fn generate_dashboard_payload(
     };
 
     let (backend, source) = state.select_backend();
-    let backend_name = backend.backend_name();
-
-    eprintln!(
-        "[Veil] dashboard:generate:start source={} backend={} hasPrompt={} maxTokens={}",
-        source.as_str(),
-        backend_name,
-        request.prompt.is_some(),
-        request.sampling.max_tokens
-    );
-
-    let start = Instant::now();
     match backend
         .generate_dashboard_json(&request, &request.sampling)
         .await
     {
-        Ok(json) => {
-            let duration_ms = start.elapsed().as_millis();
-            let payload_len = json.len();
-            eprintln!(
-                "[Veil] dashboard:generate:complete source={} backend={} durationMs={} payloadLength={}",
-                source.as_str(),
-                backend_name,
-                duration_ms,
-                payload_len
-            );
-            Ok(inject_dashboard_debug_meta(json, source, backend_name))
-        }
+        Ok(json) => Ok(json),
         Err(error) => {
-            let duration_ms = start.elapsed().as_millis();
-            eprintln!(
-                "[Veil] dashboard:generate:error source={} backend={} durationMs={} error={}",
-                source.as_str(),
-                backend_name,
-                duration_ms,
-                error
-            );
             if matches!(source, ReadingSource::Model) {
                 eprintln!("Model inference failed while generating dashboard JSON: {}", error);
             }
@@ -665,21 +598,6 @@ async fn generate_dashboard_payload(
         }
     }
 }
-
-fn inject_dashboard_debug_meta(payload_json: String, source: ReadingSource, backend_name: &str) -> String {
-    let parsed: Result<serde_json::Value, _> = serde_json::from_str(&payload_json);
-    let Ok(mut value) = parsed else {
-        return payload_json;
-    };
-
-    if let Some(meta) = value.get_mut("meta").and_then(|m| m.as_object_mut()) {
-        meta.insert("_veilSource".to_string(), json!(source.as_str()));
-        meta.insert("_veilBackend".to_string(), json!(backend_name));
-    }
-
-    serde_json::to_string(&value).unwrap_or(payload_json)
-}
-
 
 fn emit_status(app: &AppHandle, status: ModelStatus) {
     let _ = app.emit("model:status", status);
