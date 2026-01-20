@@ -384,13 +384,17 @@ impl ModelManager {
         }
     }
 
-    fn select_backend(&self) -> (Arc<dyn HoroscopeModelBackend>, ReadingSource) {
-        if matches!(self.get_status(), ModelStatus::Loaded { .. }) {
-            if let Ok(backend) = self.backend.lock() {
-                return (backend.clone(), ReadingSource::Model);
-            }
+    fn select_backend(&self) -> Result<(Arc<dyn HoroscopeModelBackend>, ReadingSource), String> {
+        match self.get_status() {
+            ModelStatus::Loaded { .. } => self
+                .backend
+                .lock()
+                .map(|backend| (backend.clone(), ReadingSource::Model))
+                .map_err(|_| "Unable to access loaded model backend.".to_string()),
+            ModelStatus::Loading { .. } => Err("Model is still loading.".to_string()),
+            ModelStatus::Unloaded => Err("Model is not initialized.".to_string()),
+            ModelStatus::Error { message } => Err(message),
         }
-        (Arc::new(StubBackend), ReadingSource::Stub)
     }
 }
 
@@ -451,40 +455,28 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
     state.set_status(ModelStatus::Loading { progress: 0.1 });
     emit_status(&app, state.get_status());
 
-    let state_clone = state.inner().clone();
-    let app_clone = app.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let steps = [0.25, 0.5, 0.75, 0.9];
-        for progress in steps {
-            std::thread::sleep(Duration::from_millis(180));
-            state_clone.set_status(ModelStatus::Loading { progress });
-            emit_status(&app_clone, state_clone.get_status());
-        }
+    let model_path = resolve_model_path(&app)?;
+    let load_result = EmbeddedBackend::load(model_path).await;
 
-        let load_result = tauri::async_runtime::block_on(async {
-            let model_path = resolve_model_path(&app_clone)?;
-            EmbeddedBackend::load(model_path).await
-        });
-
-        match load_result {
-            Ok(backend) => {
-                let model_size_bytes = backend.model_size_bytes;
-                let model_size_mb = (model_size_bytes as f32) / (1024.0 * 1024.0);
-                let model_path = backend.model_path.display().to_string();
-                state_clone.set_backend(Arc::new(backend));
-                state_clone.set_status(ModelStatus::Loaded {
-                    model_path,
-                    model_size_mb,
-                    model_size_bytes,
-                });
-                emit_status(&app_clone, state_clone.get_status());
-            }
-            Err(message) => {
-                state_clone.set_status(ModelStatus::Error { message });
-                emit_status(&app_clone, state_clone.get_status());
-            }
+    match load_result {
+        Ok(backend) => {
+            let model_size_bytes = backend.model_size_bytes;
+            let model_size_mb = (model_size_bytes as f32) / (1024.0 * 1024.0);
+            let model_path = backend.model_path.display().to_string();
+            state.set_backend(Arc::new(backend));
+            state.set_status(ModelStatus::Loaded {
+                model_path,
+                model_size_mb,
+                model_size_bytes,
+            });
+            emit_status(&app, state.get_status());
         }
-    });
+        Err(message) => {
+            state.set_status(ModelStatus::Error { message: message.clone() });
+            emit_status(&app, state.get_status());
+            return Err(message);
+        }
+    }
 
     Ok(state.get_status())
 }
@@ -508,7 +500,7 @@ async fn generate_horoscope(
         sampling: SamplingParams::default(),
     };
 
-    let (backend, source) = state.select_backend();
+    let (backend, source) = state.select_backend()?;
     let result = backend
         .generate_json(&request, &request.sampling)
         .await
@@ -542,7 +534,7 @@ async fn generate_horoscope_stream(
         sampling: sampling.unwrap_or_default(),
     };
 
-    let (backend, source) = state.select_backend();
+    let (backend, source) = state.select_backend()?;
     emit_stream_event(&app, StreamEvent::Start);
     let result = backend
         .generate_json(&request, &request.sampling)
@@ -584,7 +576,7 @@ async fn generate_dashboard_payload(
         sampling: sampling.unwrap_or_default(),
     };
 
-    let (backend, source) = state.select_backend();
+    let (backend, source) = state.select_backend()?;
     match backend
         .generate_dashboard_json(&request, &request.sampling)
         .await
@@ -593,8 +585,12 @@ async fn generate_dashboard_payload(
         Err(error) => {
             if matches!(source, ReadingSource::Model) {
                 eprintln!("Model inference failed while generating dashboard JSON: {}", error);
+                let fallback = serde_json::to_string(&crate::generate_stub_dashboard(&request))
+                    .map_err(|serialization| serialization.to_string())?;
+                Ok(fallback)
+            } else {
+                Err(error)
             }
-            Err(error)
         }
     }
 }
