@@ -501,7 +501,7 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
                 }
             }
         }
-    });
+    }
 
     Ok(state.get_status())
 }
