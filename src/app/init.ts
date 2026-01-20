@@ -25,7 +25,11 @@ function renderInitial(state: AppState) {
   renderValidationErrors(state.profile.validationErrors);
   renderModelStatus(state.model.status);
   renderDashboard(state.reading.current, state.profile.saved, state.reading.error);
-  renderBusy(state.ui.busyFlags.generating);
+  renderBusy(
+    state.ui.busyFlags.generating,
+    Boolean(state.reading.current),
+    Boolean(state.reading.error)
+  );
 }
 
 function bindSubscriptions() {
@@ -53,7 +57,12 @@ function bindSubscriptions() {
   );
   store.subscribe(
     (state) => state.ui.busyFlags.generating,
-    (value) => renderBusy(value)
+    (value) =>
+      renderBusy(
+        value,
+        Boolean(store.getState().reading.current),
+        Boolean(store.getState().reading.error)
+      )
   );
   store.subscribe(
     (state) => state.ui.toasts,
