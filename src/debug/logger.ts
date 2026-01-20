@@ -7,6 +7,8 @@ let overlayVisible = false;
 let installed = false;
 const generalLogBuffer: OverlayEntry[] = [];
 const modelLogBuffer: OverlayEntry[] = [];
+const storageKey = "VEIL_DEBUG_LOGS";
+const debugChannel = createDebugChannel();
 
 type OverlayEntry = {
   level: LogLevel;
@@ -91,7 +93,7 @@ export function initDebug(force = false) {
   installOverlay();
   // Keep the overlay hidden by default; it can be enabled via the UI toggle
   // or keyboard shortcut when needed.
-  setOverlayVisible(false);
+  setOverlayVisible(isDebugEnabled());
   installGlobalErrorHandlers();
   installGlobalPointerTracer();
 
@@ -101,7 +103,7 @@ export function initDebug(force = false) {
 
 export function debugLog(level: LogLevel, message: string, data?: unknown) {
   const entry = createEntry(level, message, data);
-  generalLogBuffer.push(entry);
+  recordEntry(entry, "general");
   if (!isDebugEnabled()) return;
   logToConsole(entry);
   appendOverlayEntry(entry, generalPaneEl);
@@ -109,7 +111,7 @@ export function debugLog(level: LogLevel, message: string, data?: unknown) {
 
 export function debugModelLog(level: LogLevel, message: string, data?: unknown) {
   const entry = createEntry(level, message, data);
-  modelLogBuffer.push(entry);
+  recordEntry(entry, "model");
   if (!isDebugEnabled()) return;
   logToConsole(entry);
   appendOverlayEntry(entry, modelPaneEl);
@@ -122,6 +124,39 @@ function createEntry(level: LogLevel, message: string, data?: unknown): OverlayE
     data,
     timestamp: new Date().toISOString().slice(11, 23),
   };
+}
+
+function createDebugChannel(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === "undefined") return null;
+  try {
+    return new BroadcastChannel("veil-debug");
+  } catch {
+    return null;
+  }
+}
+
+function recordEntry(entry: OverlayEntry, pane: "general" | "model") {
+  if (pane === "general") {
+    generalLogBuffer.push(entry);
+  } else {
+    modelLogBuffer.push(entry);
+  }
+  storeEntry(entry, pane);
+  debugChannel?.postMessage({ pane, entry });
+}
+
+function storeEntry(entry: OverlayEntry, pane: "general" | "model") {
+  try {
+    const existing = localStorage.getItem(storageKey);
+    const parsed: Array<{ pane: "general" | "model"; entry: OverlayEntry }> = existing
+      ? JSON.parse(existing)
+      : [];
+    parsed.push({ pane, entry });
+    const capped = parsed.slice(-400);
+    localStorage.setItem(storageKey, JSON.stringify(capped));
+  } catch {
+    // Ignore storage failures
+  }
 }
 
 function logToConsole(entry: OverlayEntry) {
