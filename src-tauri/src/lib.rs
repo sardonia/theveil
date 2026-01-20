@@ -467,24 +467,27 @@ async fn run_model_load(state: ModelManager, app: AppHandle) {
     let mut progress = 0.1_f32;
     let mut interval = tokio::time::interval(Duration::from_millis(180));
     let app_for_load = app.clone();
-    let load_handle = tauri::async_runtime::spawn_blocking(move || {
+    let mut load_handle = tauri::async_runtime::spawn_blocking(move || {
         tauri::async_runtime::block_on(async {
             let model_path = resolve_model_path(&app_for_load)?;
             EmbeddedBackend::load(model_path).await
         })
     });
 
-    loop {
-        interval.tick().await;
-        if load_handle.is_finished() {
-            break;
+    let load_result = loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                progress = (progress + 0.15).min(0.9);
+                state.set_status(ModelStatus::Loading { progress });
+                emit_status(&app, state.get_status());
+            }
+            result = &mut load_handle => {
+                break result;
+            }
         }
-        progress = (progress + 0.15).min(0.9);
-        state.set_status(ModelStatus::Loading { progress });
-        emit_status(&app, state.get_status());
-    }
+    };
 
-    match load_handle.await {
+    match load_result {
         Ok(Ok(backend)) => {
             let model_size_bytes = backend.model_size_bytes;
             let model_size_mb = (model_size_bytes as f32) / (1024.0 * 1024.0);
