@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri::webview::PageLoadEvent;
 use chrono::Datelike;
