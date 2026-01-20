@@ -3,7 +3,7 @@ import { HoroscopeRepository } from "../repository/horoscopeRepository";
 import { debugModelLog } from "../debug/logger";
 import { zodiacSign } from "../domain/zodiac";
 import { buildDashboardPrompt } from "./dashboardPrompt";
-import { sanitizeAndParseDashboardPayload } from "../domain/dashboard";
+import { parseDashboardPayload } from "../domain/dashboard";
 import { StubAdapter } from "../adapters/stubAdapter";
 
 // Keep in sync with domain/constants DEFAULT_SAMPLING_PARAMS for runtime fallback.
@@ -33,7 +33,7 @@ export interface PipelineStep {
 }
 
 export class BuildPromptStep implements PipelineStep {
-  async run(context: PipelineContext) {
+  async run(context: PipelineContext, _state: AppState) {
     const sign = zodiacSign(context.profile.birthdate);
     const { prompt, templateJson } = buildDashboardPrompt({
       name: context.profile.name,
@@ -41,7 +41,6 @@ export class BuildPromptStep implements PipelineStep {
       sign,
       localeDateLabel: context.localeDateLabel,
       dateISO: context.dateISO,
-      seed: context.sampling?.seed,
       mood: context.profile.mood,
       personality: context.profile.personality,
       generatedAtISO: new Date().toISOString(),
@@ -89,19 +88,14 @@ export class ValidatePayloadStep implements PipelineStep {
     this.stub = new StubAdapter();
   }
 
-  async run(context: PipelineContext, state: AppState) {
+  async run(context: PipelineContext, _state: AppState) {
     if (!context.payloadJson) return;
-    const result = sanitizeAndParseDashboardPayload(context.payloadJson);
-    if (result.ok) {
-      if (result.info.missingBraceAdded) {
-        debugModelLog("warn", "pipeline:payload:recovered:missingBrace", {
-          payloadLength: context.payloadJson.length,
-        });
-      }
-      context.payload = result.value;
+    const result = parseDashboardPayload(context.payloadJson);
+    if (result.valid) {
+      context.payload = result.payload;
       // Debug: show whether Rust returned a stub payload or model payload
-      const veilSource = (result.value as any)?.meta?._veilSource;
-      const veilBackend = (result.value as any)?.meta?._veilBackend;
+      const veilSource = (result.payload as any)?.meta?._veilSource;
+      const veilBackend = (result.payload as any)?.meta?._veilBackend;
       if (veilSource || veilBackend) {
         debugModelLog("log", "pipeline:payload:source", { veilSource, veilBackend });
         if (veilSource === "stub") {
@@ -109,9 +103,8 @@ export class ValidatePayloadStep implements PipelineStep {
         }
       }
       debugModelLog("log", "pipeline:payload:validated", {
-        meta: result.value.meta,
-        sections: result.value.today.sections.length,
-        missingBraceAdded: result.info.missingBraceAdded,
+        meta: result.payload.meta,
+        sections: result.payload.today.sections.length,
       });
       return;
     }
@@ -119,35 +112,25 @@ export class ValidatePayloadStep implements PipelineStep {
     const payloadHead = context.payloadJson.slice(0, 200);
     const payloadTail = context.payloadJson.length > 200 ? context.payloadJson.slice(-200) : "";
     debugModelLog("warn", "pipeline:payload:invalid", {
-      error: result.error.message,
+      error: result.error,
       payloadLength: context.payloadJson.length,
       payloadHead,
       payloadTail,
       payloadJson: context.payloadJson,
-      location: describeJsonErrorLocation(context.payloadJson, result.error.message),
-      wrapperFixApplied: result.info.wrapperFixApplied,
-      rootMergeApplied: result.info.rootMergeApplied,
-      missingBraceAdded: result.info.missingBraceAdded,
-      sanitizer: {
-        changed: result.info.changed,
-        codeFencesRemoved: result.info.codeFencesRemoved,
-        extractedJson: result.info.extractedJson,
-        trailingCommasRemoved: result.info.trailingCommasRemoved,
-        unquotedKeysFixed: result.info.unquotedKeysFixed,
-      },
+      location: describeJsonErrorLocation(context.payloadJson, result.error),
     });
 
     // If the model produces invalid JSON, fall back to the stub.
     debugModelLog("error", "pipeline:payload:fallback:stub", {
       reason: "Model produced invalid JSON on first attempt",
     });
-    const stubJson = await this.stub.generate(context.profile, context.dateISO, context.sampling);
-    const stubResult = sanitizeAndParseDashboardPayload(stubJson);
-    if (!stubResult.ok) {
+    const stubJson = await this.stub.generate(context.profile, context.dateISO);
+    const stubResult = parseDashboardPayload(stubJson);
+    if (!stubResult.valid) {
       // This should never happen, but fail loudly if it does.
-      throw new Error(stubResult.error.message);
+      throw new Error(stubResult.error);
     }
-    context.payload = stubResult.value;
+    context.payload = stubResult.payload;
   }
 }
 

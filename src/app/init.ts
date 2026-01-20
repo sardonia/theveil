@@ -65,10 +65,11 @@ function bindSubscriptions() {
 }
 
 export function initApp() {
+  initDebug(true);
+  debugLog("log", "initApp:boot");
   bindSubscriptions();
 
   window.addEventListener("DOMContentLoaded", () => {
-    initDebug();
     debugLog("log", "DOMContentLoaded");
 
     // Helpful startup diagnostics (especially for WKWebView issues).

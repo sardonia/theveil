@@ -113,6 +113,56 @@
           opacity: 0.7;
         }
       }
+
+      #veil-debug-overlay {
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        top: 12px;
+        height: 35vh;
+        display: none;
+        flex-direction: column;
+        background: rgba(10, 12, 26, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 12px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+        z-index: 999999;
+        pointer-events: auto;
+        overflow: hidden;
+      }
+
+      #veil-debug-overlay header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        position: sticky;
+        top: 0;
+        background: rgba(10, 12, 26, 0.92);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.82);
+      }
+
+      #veil-debug-overlay .debug-log {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 8px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.35;
+        white-space: pre-wrap;
+      }
+
+      #veil-debug-overlay .debug-entry {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 6px 8px;
+      }
     </style>
   </head>
   <body>
@@ -224,6 +274,123 @@
           }
         });
       }
+    </script>
+    <script>
+      (() => {
+        const storageKey = "VEIL_DEBUG_LOGS";
+        const isDebugEnabled = () => {
+          try {
+            return localStorage.getItem("VEIL_DEBUG") === "1";
+          } catch {
+            return false;
+          }
+        };
+
+        if (!isDebugEnabled()) return;
+
+        const overlay = document.createElement("div");
+        overlay.id = "veil-debug-overlay";
+        const header = document.createElement("header");
+        header.textContent = "Veil Debug (Loading)";
+        const logPane = document.createElement("div");
+        logPane.className = "debug-log";
+        overlay.appendChild(header);
+        overlay.appendChild(logPane);
+        document.body.appendChild(overlay);
+        overlay.style.display = "flex";
+
+        const safeStringify = (value) => {
+          try {
+            if (value instanceof Error) {
+              return `${value.name}: ${value.message}\n${value.stack ?? ""}`.trim();
+            }
+            if (typeof value === "string") return value;
+            return JSON.stringify(value, null, 2);
+          } catch {
+            try {
+              return String(value);
+            } catch {
+              return "[unstringifiable]";
+            }
+          }
+        };
+
+        const renderEntry = (pane, entry) => {
+          const line = document.createElement("div");
+          line.className = "debug-entry";
+          const prefix = pane === "model" ? "[Model]" : "[UI]";
+          const base = `${prefix} ${entry.timestamp} ${entry.message}`;
+          const payload = entry.data === undefined ? base : `${base}\n${safeStringify(entry.data)}`;
+          line.textContent = payload;
+          line.style.color =
+            entry.level === "error"
+              ? "#ffb3c7"
+              : entry.level === "warn"
+                ? "#ffe2a8"
+                : "#e9efff";
+          logPane.appendChild(line);
+          logPane.scrollTop = logPane.scrollHeight;
+        };
+
+        const renderFromStorage = () => {
+          logPane.innerHTML = "";
+          try {
+            const stored = localStorage.getItem(storageKey);
+            if (!stored) return;
+            const entries = JSON.parse(stored);
+            if (!Array.isArray(entries)) return;
+            entries.forEach((item) => {
+              if (!item || !item.entry) return;
+              renderEntry(item.pane || "general", item.entry);
+            });
+          } catch {
+            // ignore parse errors
+          }
+        };
+
+        renderFromStorage();
+
+        if (typeof BroadcastChannel !== "undefined") {
+          try {
+            const channel = new BroadcastChannel("veil-debug");
+            channel.addEventListener("message", (event) => {
+              if (!event.data || !event.data.entry) return;
+              renderEntry(event.data.pane || "general", event.data.entry);
+            });
+          } catch {
+            // ignore channel failures
+          }
+        }
+
+        window.addEventListener("storage", (event) => {
+          if (event.key === storageKey) {
+            renderFromStorage();
+          }
+        });
+
+        window.addEventListener("error", (event) => {
+          renderEntry("general", {
+            level: "error",
+            message: "splash:error",
+            data: {
+              message: event.message,
+              filename: event.filename,
+              lineno: event.lineno,
+              colno: event.colno,
+            },
+            timestamp: new Date().toISOString().slice(11, 23),
+          });
+        });
+
+        window.addEventListener("unhandledrejection", (event) => {
+          renderEntry("general", {
+            level: "error",
+            message: "splash:unhandledrejection",
+            data: event.reason,
+            timestamp: new Date().toISOString().slice(11, 23),
+          });
+        });
+      })();
     </script>
   </body>
 </html>
