@@ -461,11 +461,11 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
     tauri::async_runtime::spawn(async move {
         let mut progress = 0.1_f32;
         let mut interval = tokio::time::interval(Duration::from_millis(180));
-        let load_future = async {
-            let model_path = resolve_model_path(&app_clone)?;
+        let app_for_load = app_clone.clone();
+        let mut load_handle = tauri::async_runtime::spawn(async move {
+            let model_path = resolve_model_path(&app_for_load)?;
             EmbeddedBackend::load(model_path).await
-        };
-        tokio::pin!(load_future);
+        });
         loop {
             tokio::select! {
                 _ = interval.tick() => {
@@ -473,9 +473,9 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
                     state_clone.set_status(ModelStatus::Loading { progress });
                     emit_status(&app_clone, state_clone.get_status());
                 }
-                load_result = &mut load_future => {
+                load_result = &mut load_handle => {
                     match load_result {
-                        Ok(backend) => {
+                        Ok(Ok(backend)) => {
                             let model_size_bytes = backend.model_size_bytes;
                             let model_size_mb = (model_size_bytes as f32) / (1024.0 * 1024.0);
                             let model_path = backend.model_path.display().to_string();
@@ -487,7 +487,12 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
                             });
                             emit_status(&app_clone, state_clone.get_status());
                         }
-                        Err(message) => {
+                        Ok(Err(message)) => {
+                            state_clone.set_status(ModelStatus::Error { message });
+                            emit_status(&app_clone, state_clone.get_status());
+                        }
+                        Err(error) => {
+                            let message = format!("Model load task failed: {}", error);
                             state_clone.set_status(ModelStatus::Error { message });
                             emit_status(&app_clone, state_clone.get_status());
                         }
