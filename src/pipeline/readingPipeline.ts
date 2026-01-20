@@ -2,9 +2,20 @@ import type { AppState, DashboardPayload, ProfileDraft, SamplingParams } from ".
 import { HoroscopeRepository } from "../repository/horoscopeRepository";
 import { debugModelLog } from "../debug/logger";
 import { zodiacSign } from "../domain/zodiac";
-import { buildDashboardPrompt, buildRepairPrompt } from "./dashboardPrompt";
-import { extractFirstJsonObject, parseDashboardPayload } from "../domain/dashboard";
-import { DEFAULT_SAMPLING_PARAMS } from "../domain/constants";
+import { buildDashboardPrompt } from "./dashboardPrompt";
+import { sanitizeAndParseDashboardPayload } from "../domain/dashboard";
+import { StubAdapter } from "../adapters/stubAdapter";
+
+// Keep in sync with domain/constants DEFAULT_SAMPLING_PARAMS for runtime fallback.
+const DEFAULT_SAMPLING_PARAMS: SamplingParams = {
+  temperature: 0.45,
+  topP: 0.9,
+  topK: 50,
+  repeatPenalty: 1.1,
+  maxTokens: 3600,
+  seed: null,
+  stop: [],
+};
 
 export interface PipelineContext {
   profile: ProfileDraft;
@@ -30,14 +41,19 @@ export class BuildPromptStep implements PipelineStep {
       sign,
       localeDateLabel: context.localeDateLabel,
       dateISO: context.dateISO,
+      seed: context.sampling?.seed,
       mood: context.profile.mood,
       personality: context.profile.personality,
       generatedAtISO: new Date().toISOString(),
     });
     context.prompt = prompt;
     context.templateJson = templateJson;
+    const promptPreview = previewText(context.prompt ?? "");
     debugModelLog("log", "pipeline:prompt:built", {
-      prompt: context.prompt,
+      promptLength: promptPreview.length,
+      promptHead: promptPreview.head,
+      promptTail: promptPreview.tail,
+      templateLength: templateJson.length,
     });
   }
 }
@@ -67,71 +83,71 @@ export class InvokeModelStep implements PipelineStep {
 }
 
 export class ValidatePayloadStep implements PipelineStep {
-  private repository: HoroscopeRepository;
+  private stub: StubAdapter;
 
-  constructor(repository: HoroscopeRepository) {
-    this.repository = repository;
+  constructor() {
+    this.stub = new StubAdapter();
   }
 
   async run(context: PipelineContext, state: AppState) {
     if (!context.payloadJson) return;
-    const extracted = extractFirstJsonObject(context.payloadJson);
-    const candidate = extracted ?? context.payloadJson;
-    const result = parseDashboardPayload(candidate);
-    if (!result.valid) {
-      debugModelLog("warn", "pipeline:payload:invalid", {
-        error: result.error,
-        payloadJson: context.payloadJson,
-      });
-      if (!context.templateJson) {
-        throw new Error(result.error);
-      }
-      const repairPrompt = buildRepairPrompt(
-        {
-          name: context.profile.name,
-          birthdate: context.profile.birthdate,
-          sign: zodiacSign(context.profile.birthdate),
-          localeDateLabel: context.localeDateLabel,
-          dateISO: context.dateISO,
-          mood: context.profile.mood,
-          personality: context.profile.personality,
-          generatedAtISO: new Date().toISOString(),
-        },
-        context.templateJson,
-        context.payloadJson
-      );
-      debugModelLog("log", "pipeline:payload:repair:start", {
-        hasPrompt: Boolean(repairPrompt),
-      });
-      const repairedJson = await this.repository.generate(
-        context.profile,
-        context.dateISO,
-        repairPrompt,
-        state.model.status,
-        context.sampling
-      );
-      const repairedExtracted = extractFirstJsonObject(repairedJson);
-      const repairedCandidate = repairedExtracted ?? repairedJson;
-      const repairedResult = parseDashboardPayload(repairedCandidate);
-      if (!repairedResult.valid) {
-        debugModelLog("error", "pipeline:payload:repair:failed", {
-          error: repairedResult.error,
-          payloadJson: repairedJson,
+    const result = sanitizeAndParseDashboardPayload(context.payloadJson);
+    if (result.ok) {
+      if (result.info.missingBraceAdded) {
+        debugModelLog("warn", "pipeline:payload:recovered:missingBrace", {
+          payloadLength: context.payloadJson.length,
         });
-        throw new Error(repairedResult.error);
       }
-      context.payload = repairedResult.payload;
-      debugModelLog("log", "pipeline:payload:repair:validated", {
-        meta: repairedResult.payload.meta,
-        sections: repairedResult.payload.today.sections.length,
+      context.payload = result.value;
+      // Debug: show whether Rust returned a stub payload or model payload
+      const veilSource = (result.value as any)?.meta?._veilSource;
+      const veilBackend = (result.value as any)?.meta?._veilBackend;
+      if (veilSource || veilBackend) {
+        debugModelLog("log", "pipeline:payload:source", { veilSource, veilBackend });
+        if (veilSource === "stub") {
+          debugModelLog("warn", "pipeline:payload:using:stub", { veilBackend });
+        }
+      }
+      debugModelLog("log", "pipeline:payload:validated", {
+        meta: result.value.meta,
+        sections: result.value.today.sections.length,
+        missingBraceAdded: result.info.missingBraceAdded,
       });
       return;
     }
-    context.payload = result.payload;
-    debugModelLog("log", "pipeline:payload:validated", {
-      meta: result.payload.meta,
-      sections: result.payload.today.sections.length,
+
+    const payloadHead = context.payloadJson.slice(0, 200);
+    const payloadTail = context.payloadJson.length > 200 ? context.payloadJson.slice(-200) : "";
+    debugModelLog("warn", "pipeline:payload:invalid", {
+      error: result.error.message,
+      payloadLength: context.payloadJson.length,
+      payloadHead,
+      payloadTail,
+      payloadJson: context.payloadJson,
+      location: describeJsonErrorLocation(context.payloadJson, result.error.message),
+      wrapperFixApplied: result.info.wrapperFixApplied,
+      rootMergeApplied: result.info.rootMergeApplied,
+      missingBraceAdded: result.info.missingBraceAdded,
+      sanitizer: {
+        changed: result.info.changed,
+        codeFencesRemoved: result.info.codeFencesRemoved,
+        extractedJson: result.info.extractedJson,
+        trailingCommasRemoved: result.info.trailingCommasRemoved,
+        unquotedKeysFixed: result.info.unquotedKeysFixed,
+      },
     });
+
+    // If the model produces invalid JSON, fall back to the stub.
+    debugModelLog("error", "pipeline:payload:fallback:stub", {
+      reason: "Model produced invalid JSON on first attempt",
+    });
+    const stubJson = await this.stub.generate(context.profile, context.dateISO, context.sampling);
+    const stubResult = sanitizeAndParseDashboardPayload(stubJson);
+    if (!stubResult.ok) {
+      // This should never happen, but fail loudly if it does.
+      throw new Error(stubResult.error.message);
+    }
+    context.payload = stubResult.value;
   }
 }
 
@@ -142,6 +158,51 @@ function hashSeed(input: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+function previewText(
+  text: string,
+  head = 220,
+  tail = 220
+): { length: number; head: string; tail: string } {
+  const length = text.length;
+  if (length <= head + tail + 20) {
+    return { length, head: text, tail: "" };
+  }
+  return {
+    length,
+    head: text.slice(0, head),
+    tail: text.slice(Math.max(0, length - tail)),
+  };
+}
+
+function describeJsonErrorLocation(
+  json: string,
+  message: string
+): { position: number | null; line: number | null; column: number | null; snippet: string | null } {
+  const match = message.match(/position (\d+)/i);
+  if (!match) {
+    return { position: null, line: null, column: null, snippet: null };
+  }
+  const position = Number(match[1]);
+  if (!Number.isFinite(position) || position < 0) {
+    return { position: null, line: null, column: null, snippet: null };
+  }
+  const safePosition = Math.min(position, json.length);
+  let line = 1;
+  let column = 1;
+  for (let i = 0; i < safePosition; i += 1) {
+    if (json[i] === "\n") {
+      line += 1;
+      column = 1;
+    } else {
+      column += 1;
+    }
+  }
+  const start = Math.max(0, safePosition - 120);
+  const end = Math.min(json.length, safePosition + 120);
+  const snippet = json.slice(start, end);
+  return { position: safePosition, line, column, snippet };
 }
 
 function buildSamplingParams(
@@ -171,9 +232,14 @@ export async function runReadingPipeline(
   const steps: PipelineStep[] = [
     new BuildPromptStep(),
     new InvokeModelStep(repository),
-    new ValidatePayloadStep(repository),
+    new ValidatePayloadStep(),
   ];
-  const localeDateLabel = new Date(dateISO).toLocaleDateString(undefined, {
+  const [year, month, day] = dateISO.split("-").map((value) => Number(value));
+  const safeLocalDate =
+    Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)
+      ? new Date(year, month - 1, day)
+      : new Date();
+  const localeDateLabel = safeLocalDate.toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
     day: "numeric",
