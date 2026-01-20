@@ -499,7 +499,7 @@ async fn init_model(state: State<'_, ModelManager>, app: AppHandle) -> Result<Mo
                 emit_status(&app_clone, state_clone.get_status());
             }
         }
-    });
+    }
 
     Ok(state.get_status())
 }
