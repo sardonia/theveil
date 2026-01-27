@@ -7,6 +7,7 @@ import { commandBus, store } from "../../app/runtime";
 export function initModel() {
   let warnTimeout: number | null = null;
   let errorTimeout: number | null = null;
+  let loadStart = performance.now();
   const clearFallbacks = () => {
     if (warnTimeout !== null) {
       window.clearTimeout(warnTimeout);
@@ -40,6 +41,9 @@ export function initModel() {
   invoke<ModelStatus>("init_model")
     .then((status) => {
       commandBus.execute({ type: "ModelStatusUpdated", status });
+      if (status.status === "loading") {
+        loadStart = performance.now();
+      }
       debugModelLog("log", "model:init:response", status);
       if (status.status === "loaded" || status.status === "error") {
         clearFallbacks();
@@ -59,7 +63,15 @@ export function initModel() {
 
   listen<ModelStatus>("model:status", (event) => {
     commandBus.execute({ type: "ModelStatusUpdated", status: event.payload });
-    debugModelLog("log", "model:status:update", event.payload);
+    if (event.payload.status === "loading") {
+      loadStart = performance.now();
+    }
+    const loadDurationMs =
+      event.payload.status === "loaded" ? Math.round(performance.now() - loadStart) : undefined;
+    debugModelLog("log", "model:status:update", {
+      ...event.payload,
+      ...(loadDurationMs !== undefined ? { loadDurationMs } : {}),
+    });
     if (event.payload.status === "loaded" || event.payload.status === "error") {
       clearFallbacks();
     } else {
