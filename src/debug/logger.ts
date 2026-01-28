@@ -240,8 +240,8 @@ function installOverlay() {
   // (like the "Reveal my reading" button) that tend to live near the bottom.
   overlayEl.style.top = "12px";
   overlayEl.style.bottom = "auto";
-  overlayEl.style.height = "35vh";
-  overlayEl.style.maxHeight = "35vh";
+  overlayEl.style.height = "70vh";
+  overlayEl.style.maxHeight = "70vh";
   overlayEl.style.display = "none";
   overlayEl.style.flexDirection = "column";
   overlayEl.style.background = "rgba(10, 12, 26, 0.88)";
